@@ -1,0 +1,138 @@
+═══════════════════════════════════════════════════════════════════════════════
+              MATLAB vs NumPy Axis Direction - Visual Guide
+═══════════════════════════════════════════════════════════════════════════════
+
+TRADE MATRIX STRUCTURE:
+═══════════════════════════════════════════════════════════════════════════════
+
+                    Importer 0   Importer 1   Importer 2   (columns)
+                         ↓            ↓            ↓
+Exporter 0 →        [ X[0,0]      X[0,1]      X[0,2]  ]
+Exporter 1 →        [ X[1,0]      X[1,1]      X[1,2]  ]
+Exporter 2 →        [ X[2,0]      X[2,1]      X[2,2]  ]
+   (rows)
+
+ROW INDEX (i) = EXPORTER
+COLUMN INDEX (j) = IMPORTER
+X[i,j] = exports FROM country i TO country j
+
+
+IMPORTS (COLUMN SUMS):
+═══════════════════════════════════════════════════════════════════════════════
+
+Sum DOWN the columns (collapse rows):
+
+                    Importer 0   Importer 1   Importer 2
+                         ↓            ↓            ↓
+Exporter 0          [ X[0,0]      X[0,1]      X[0,2]  ]
+Exporter 1          [ X[1,0]      X[1,1]      X[1,2]  ]   SUM DOWN
+Exporter 2          [ X[2,0]      X[2,1]      X[2,2]  ]     ↓
+                      ─────────────────────────────────
+IMPORTS             [ Total₀      Total₁      Total₂  ]
+
+MATLAB:   sum(X, 1)        → dimension 1 (columns) → gives 1×N row vector
+          sum(X, 1)'       → transpose to N×1 column vector
+
+NumPy:    np.sum(X, axis=0) → axis 0 (rows) collapses → gives column totals
+
+
+EXPORTS (ROW SUMS):
+═══════════════════════════════════════════════════════════════════════════════
+
+Sum ACROSS the rows (collapse columns):
+
+                    Importer 0   Importer 1   Importer 2
+
+Exporter 0          [ X[0,0]      X[0,1]      X[0,2]  ]  →  Total₀
+Exporter 1          [ X[1,0]      X[1,1]      X[1,2]  ]  →  Total₁
+Exporter 2          [ X[2,0]      X[2,1]      X[2,2]  ]  →  Total₂
+                                                              EXPORTS
+                     ─────────────SUM ACROSS─────────────→
+
+MATLAB:   sum(X, 2)        → dimension 2 (rows) → gives N×1 column vector
+
+NumPy:    np.sum(X, axis=1) → axis 1 (columns) collapses → gives row totals
+
+
+DIMENSION vs AXIS TERMINOLOGY:
+═══════════════════════════════════════════════════════════════════════════════
+
+MATLAB Dimensions:
+  - Dimension 1 = COLUMNS (vertical direction)
+  - Dimension 2 = ROWS (horizontal direction)
+  - sum(X, 1) = "sum along dimension 1" = sum DOWN columns = column totals
+  - sum(X, 2) = "sum along dimension 2" = sum ACROSS rows = row totals
+
+NumPy Axes:
+  - Axis 0 = ROWS (first index, vertical direction)
+  - Axis 1 = COLUMNS (second index, horizontal direction)
+  - sum(X, axis=0) = "sum along axis 0" = sum DOWN rows = column totals
+  - sum(X, axis=1) = "sum along axis 1" = sum ACROSS columns = row totals
+
+
+CORRECT MAPPING:
+═══════════════════════════════════════════════════════════════════════════════
+
+┌────────────────────┬─────────────────────┬─────────────────────────────┐
+│ MATLAB             │ NumPy               │ Result                      │
+├────────────────────┼─────────────────────┼─────────────────────────────┤
+│ sum(X, 1)          │ np.sum(X, axis=0)   │ Column totals (imports)     │
+│ sum(X, 1)'         │ np.sum(X, axis=0)   │ Column totals transposed    │
+│ sum(X, 2)          │ np.sum(X, axis=1)   │ Row totals (exports)        │
+└────────────────────┴─────────────────────┴─────────────────────────────┘
+
+
+CONCRETE EXAMPLE:
+═══════════════════════════════════════════════════════════════════════════════
+
+X = [10  20  30]
+    [40  50  60]
+    [70  80  90]
+
+MATLAB sum(X, 1):  [120, 150, 180]  ← column totals (10+40+70, 20+50+80, etc.)
+NumPy  sum(X, axis=0): [120, 150, 180]  ← SAME
+
+MATLAB sum(X, 2):  [60, 150, 240]'  ← row totals (10+20+30, 40+50+60, etc.)
+NumPy  sum(X, axis=1): [60, 150, 240]  ← SAME
+
+
+THE BUGS:
+═══════════════════════════════════════════════════════════════════════════════
+
+BUG PATTERN: Axes are SWAPPED in many places in the Python code
+
+Example 1 - Y_i calculation (main_baseline.py line 188-189):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MATLAB: sum( repmat((1-nu)',N,1).*X_ji, 2)                                  │
+│         ↑ This is dimension 2 = sum ACROSS rows                             │
+│                                                                              │
+│ WRONG Python: np.sum(..., axis=0)  ← sums DOWN rows (column totals)        │
+│ RIGHT Python: np.sum(..., axis=1)  ← sums ACROSS columns (row totals)      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Example 2 - ERR1 calculation (main_baseline.py lines 88-89):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MATLAB: sum((1-nu_2D).*X_ji_new, 2) + sum(nu_2D.*X_ji_new, 1)'             │
+│         ↑ dimension 2 (rows)         ↑ dimension 1 (columns)               │
+│                                                                              │
+│ WRONG Python: axis=0 + axis=1  ← SWAPPED!                                  │
+│ RIGHT Python: axis=1 + axis=0  ← matches MATLAB dimensions                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+MEMORY AID:
+═══════════════════════════════════════════════════════════════════════════════
+
+Think of it this way:
+  - MATLAB dimension N says "I'm summing ALONG this dimension"
+  - NumPy axis N says "I'm COLLAPSING this axis"
+  - They reference DIFFERENT things!
+
+MATLAB dimension 1 (columns) → NumPy collapses axis 0 (rows) → column totals
+MATLAB dimension 2 (rows)    → NumPy collapses axis 1 (cols) → row totals
+
+Or simply remember:
+  MATLAB dim 1 = NumPy axis 0
+  MATLAB dim 2 = NumPy axis 1
+
+═══════════════════════════════════════════════════════════════════════════════

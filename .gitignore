@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+*.log
+*.tmp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Large data files (download separately - see DATA_README.md)
+data/sectoral_tariffs/*.csv
+data/sectoral_tariffs/*.dta
+data/ITPDS/ITPD_S_R1.1_2019.csv
+data/ITPDS/estimation_sample.dta
+data/base_data/raw_data/BACI_HS22_Y2023_V202501.csv
+data/Dynamic_Gravity_Database/release_2.1_2015_2019.csv
