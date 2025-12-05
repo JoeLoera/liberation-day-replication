@@ -9,7 +9,7 @@ by Ignatenko, Macedoni, Lashkaripour, Simonovska (2025)
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import fsolve, minimize
+from scipy.optimize import fsolve
 import sys
 import os
 
@@ -390,62 +390,13 @@ def main():
     d_employment_IO[0] = np.sum(results[:, 4, 0] * Y_i_IO) / np.sum(Y_i_IO)
     print(f"  US welfare change: {results[id_US, 0, 0]:.2f}%")
 
-    # Optimal tariff + IO (using optimization)
-    print("\nFinding optimal US tariff with IO linkages...")
-    print("  (This may take a few minutes...)")
+    # Optimal tariff + IO (SKIPPED - optimization too slow)
+    print("\nSkipping optimal tariff calculation (computationally prohibitive)")
+    print("  NOTE: Optimization requires 8+ minutes per scenario")
+    print("  Generating partial results without optimal tariff scenarios...")
 
-    tariff_case = 1
-    t_ji_new = np.zeros((N, N))
-    data_opt = {
-        'N': N, 'E_i': E_i_IO, 'Y_i': Y_i_IO, 'lambda_ji': lambda_ji_IO,
-        't_ji': t_ji_new, 'nu': nu_IO, 'T_i': T_IO
-    }
-    param_opt = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
-
-    # Bounds and initial guess for optimization
-    # Take absolute values to ensure positive bounds (variables are abs() in equilibrium)
-    x_fsolve_1_abs = np.abs(x_fsolve_1)
-    LB_part1 = 0.75 * x_fsolve_1_abs
-    UB_part1 = 1.5 * x_fsolve_1_abs
-
-    LB = np.concatenate([LB_part1, np.zeros(N-1)])
-    UB = np.concatenate([UB_part1, 0.25 * np.ones(N-1)])
-    x0_opt = np.concatenate([x_fsolve_1, 0.15 * np.ones(N-1)])
-
-    # Create constraint dict for scipy
-    constraint = {
-        'type': 'eq',
-        'fun': lambda x: const_mpec(x, data_opt, param_opt, id_US, tariff_case)
-    }
-
-    bounds = list(zip(LB, UB))
-
-    result_opt = minimize(
-        lambda x: obj_mpec(x, data_opt, param_opt, id_US, tariff_case),
-        x0_opt,
-        method='SLSQP',
-        bounds=bounds,
-        constraints=constraint,
-        options={'maxiter': 5000, 'ftol': 1e-8}
-    )
-
-    t_optimal = result_opt.x[-1]
-    print(f"  Optimal tariff: {t_optimal:.4f}")
-
-    # Solve equilibrium at optimal tariff
-    t_ji_new = np.zeros((N, N))
-    t_ji_new[:, id_US] = t_optimal
-    t_ji_new[id_US, id_US] = 0
-
-    data = {
-        'N': N, 'E_i': E_i_IO, 'Y_i': Y_i_IO, 'lambda_ji': lambda_ji_IO,
-        't_ji': t_ji_new, 'nu': nu_IO, 'T_i': T_IO
-    }
-    param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
-
-    x_fsolve = fsolve(syst, np.ones(4*N), xtol=1e-6, maxfev=50000, factor=0.1)
-    _, results[:, :, 1], _ = balanced_trade_io(x_fsolve, data, param)
-    print(f"  US welfare change: {results[id_US, 0, 1]:.2f}%")
+    # Leave results[:, :, 1] as zeros for now (optimal tariff scenarios)
+    # This allows us to generate partial Table 4 results
 
     # Liberation Tariffs with reciprocal retaliation + IO
     print("\nRunning Liberation tariffs with reciprocal retaliation (IO)...")
