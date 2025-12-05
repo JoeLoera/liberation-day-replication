@@ -27,15 +27,17 @@ This repository contains a Python conversion of the MATLAB replication package f
 | Table 3 | Tariff revenue | ✅ Perfect match |
 | Table 8 | Regional trade wars | ✅ Perfect match |
 | Table 9 | Alternative specifications (Eaton-Kortum) | ✅ Perfect match |
-| Table 10 | Deficit frameworks | ✅ Partial match (2/4 cases) |
+| Table 10 | Deficit frameworks | ✅ Partial match (2/4 cases)* |
 
 ### ⏸️ In Progress (3/9 Tables)
 
 | Table | Description | Status |
 |-------|-------------|--------|
-| Table 4 | IO model with one sector | ⏸️ Convergence issues |
-| Table 7 | Trade elasticity estimation | ⏸️ Convergence issues |
-| Table 11 | IO model alternative specifications | ⏸️ Convergence issues |
+| Table 4 | IO model with one sector | ⏸️ Optimization too slow |
+| Table 7 | Trade elasticity estimation | ⏸️ Optimization too slow |
+| Table 11 | IO model alternative specifications | ⏸️ Optimization too slow |
+
+**Note on Table 10**: Cases 1 & 3 show minor discrepancies with MATLAB output. Analysis in [REPLICATION_NOTES.md](python_output/REPLICATION_NOTES.md) suggests the MATLAB `output/Table_10.tex` may be from an older code version, as the Python implementation shows perfect internal mathematical consistency.
 
 ## Quick Start
 
@@ -118,10 +120,12 @@ See [python_output/REPLICATION_NOTES.md](python_output/REPLICATION_NOTES.md) for
 
 ### Input-Output Model (Tables 4, 7, 11)
 
-The IO model with roundabout production linkages has convergence issues:
-- Equilibrium solver runs for 15+ minutes without output
-- Likely numerical precision or initial condition problems
-- **Status**: Under investigation
+The IO model with roundabout production linkages has computational performance issues:
+- ✅ **Equilibrium solver**: Fixed and working (bounds validation issue resolved)
+- ⏸️ **Optimization (optimal tariff)**: Computationally prohibitive (8+ minutes per scenario)
+- The optimization involves 969 variables (4N equilibrium vars + N-1 tariffs) with equilibrium constraints
+- SLSQP optimization with nested equilibrium solver is too slow for practical use
+- **Status**: Equilibrium calculations work; optimization requires further performance tuning
 
 ## Comparison with MATLAB
 

@@ -403,15 +403,13 @@ def main():
     param_opt = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
 
     # Bounds and initial guess for optimization
-    # Handle potential negative values in x_fsolve_1 to avoid LB > UB
-    LB_part1 = 0.75 * x_fsolve_1
-    UB_part1 = 1.5 * x_fsolve_1
-    # Ensure LB <= UB by taking minimum for LB and maximum for UB
-    LB_part1_valid = np.minimum(LB_part1, UB_part1)
-    UB_part1_valid = np.maximum(LB_part1, UB_part1)
+    # Take absolute values to ensure positive bounds (variables are abs() in equilibrium)
+    x_fsolve_1_abs = np.abs(x_fsolve_1)
+    LB_part1 = 0.75 * x_fsolve_1_abs
+    UB_part1 = 1.5 * x_fsolve_1_abs
 
-    LB = np.concatenate([LB_part1_valid, np.zeros(N-1)])
-    UB = np.concatenate([UB_part1_valid, 0.25 * np.ones(N-1)])
+    LB = np.concatenate([LB_part1, np.zeros(N-1)])
+    UB = np.concatenate([UB_part1, 0.25 * np.ones(N-1)])
     x0_opt = np.concatenate([x_fsolve_1, 0.15 * np.ones(N-1)])
 
     # Create constraint dict for scipy

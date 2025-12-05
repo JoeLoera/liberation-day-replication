@@ -192,8 +192,45 @@ All `fsolve` calls in `main_deficit.py` updated from `xtol=1e-6` to `xtol=1e-10`
 
 ---
 
+---
+
+## Input-Output Model Progress (Tables 4, 7, 11)
+
+### Status: Partially Working
+
+The IO model with roundabout production linkages has been partially fixed:
+
+#### ✅ Fixed Issues:
+1. **Bounds validation error**: Fixed by taking absolute values of equilibrium solution before computing optimization bounds
+2. **Equilibrium solver**: Now converges successfully for single-sector IO model
+3. **First scenario working**: Liberation tariffs + IO linkages equilibrium solves in ~30 seconds
+
+#### ⏸️ Remaining Issues:
+1. **Optimization performance**: The optimal tariff calculation via SLSQP is computationally prohibitive
+   - Problem size: 969 variables (4×194 equilibrium vars + 193 tariff vars)
+   - Nested structure: Each optimization iteration requires solving a 776-variable nonlinear system
+   - Runtime: 8+ minutes per optimization scenario (×6 scenarios needed = 48+ minutes total)
+   - MATLAB uses `fmincon` with interior-point, but even with matching settings, Python SLSQP is too slow
+
+2. **Alternative approaches needed**:
+   - Consider gradient-based optimization with analytical Jacobians
+   - Implement better initial guesses from baseline equilibrium
+   - Explore trust-region methods instead of SLSQP
+   - Consider multi-sector IO model (even larger problem)
+
+### Code Changes Made:
+- `main_io.py` line 407-412: Fixed optimization bounds calculation
+  ```python
+  # Take absolute values to ensure positive bounds
+  x_fsolve_1_abs = np.abs(x_fsolve_1)
+  LB_part1 = 0.75 * x_fsolve_1_abs
+  UB_part1 = 1.5 * x_fsolve_1_abs
+  ```
+
+---
+
 ## Date of Documentation
-December 4, 2025
+December 4, 2025 (updated during session)
 
 ## Python Version
 Python 3.12 with NumPy, SciPy, Pandas
