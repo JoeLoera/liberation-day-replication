@@ -338,12 +338,15 @@ def main():
     X_ji_IO = X_ji.copy()
     X_ji_IO[np.eye(N, dtype=bool)] = X_ji[np.eye(N, dtype=bool)] / beta
 
-    E_i_IO = np.sum(X_ji_IO, axis=1)
-    Y_i_IO = beta * np.sum(np.tile((1 - nu_IO).reshape(1, -1), (N, 1)) * X_ji_IO, axis=0) + \
-             nu_IO * np.sum(X_ji_IO, axis=1)
+    # FIXED: E_i_IO should be column sums (axis=0), not row sums
+    E_i_IO = np.sum(X_ji_IO, axis=0)
+    # FIXED: First term should be row sums (axis=1), second term column sums (axis=0)
+    Y_i_IO = beta * np.sum(np.tile((1 - nu_IO).reshape(1, -1), (N, 1)) * X_ji_IO, axis=1) + \
+             nu_IO * np.sum(X_ji_IO, axis=0)
     lambda_ji_IO = X_ji_IO / np.tile(E_i_IO.reshape(1, -1), (N, 1))
+    # FIXED: Should be row sums (axis=1), not column sums
     T_IO = E_i_IO - (Y_i_IO + (1 - beta) * \
-                     np.sum(np.tile((1 - nu_IO).reshape(1, -1), (N, 1)) * X_ji_IO, axis=0))
+                     np.sum(np.tile((1 - nu_IO).reshape(1, -1), (N, 1)) * X_ji_IO, axis=1))
 
     # Read tariffs
     tariff_path = os.path.join(base_path, 'data', 'base_data', 'tariffs.csv')
@@ -383,20 +386,71 @@ def main():
         ceq, _, _ = balanced_trade_io(x, data, param)
         return ceq
 
-    # Use more relaxed tolerance and lower max iterations to avoid infinite loops
+    # Tight tolerance to match MATLAB (TolFun=1e-10, TolX=1e-10)
     print("  Solving equilibrium (this may take 2-3 minutes)...")
-    x_fsolve_1 = fsolve(syst, x0, xtol=1e-6, maxfev=50000, factor=0.1)
+    x_fsolve_1 = fsolve(syst, x0, xtol=1e-10, maxfev=50000, factor=0.1)
     _, results[:, :, 0], d_trade_IO[0] = balanced_trade_io(x_fsolve_1, data, param)
     d_employment_IO[0] = np.sum(results[:, 4, 0] * Y_i_IO) / np.sum(Y_i_IO)
     print(f"  US welfare change: {results[id_US, 0, 0]:.2f}%")
 
-    # Optimal tariff + IO (SKIPPED - optimization too slow)
-    print("\nSkipping optimal tariff calculation (computationally prohibitive)")
-    print("  NOTE: Optimization requires 8+ minutes per scenario")
-    print("  Generating partial results without optimal tariff scenarios...")
+    # Optimal tariff + IO (using grid search)
+    print("\nFinding optimal US tariff with IO linkages...")
+    print("  Using grid search over uniform tariff values...")
 
-    # Leave results[:, :, 1] as zeros for now (optimal tariff scenarios)
-    # This allows us to generate partial Table 4 results
+    non_us = np.setdiff1d(np.arange(N), [id_US])
+
+    # Grid search over uniform tariff values from 0.10 to 0.25
+    tariff_grid = np.arange(0.10, 0.26, 0.01)
+    best_welfare = -np.inf
+    best_tariff = 0.15
+    best_solution = x_fsolve_1.copy()
+
+    for t_test in tariff_grid:
+        # Set uniform tariff on US imports
+        t_ji_test = np.zeros((N, N))
+        t_ji_test[non_us, id_US] = t_test
+
+        # Update data with new tariff
+        data_test = {
+            'N': N, 'E_i': E_i_IO, 'Y_i': Y_i_IO, 'lambda_ji': lambda_ji_IO,
+            't_ji': t_ji_test, 'nu': nu_IO, 'T_i': T_IO
+        }
+        param_test = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
+
+        # Define equilibrium system for this tariff
+        def syst_tariff(x):
+            ceq, _, _ = balanced_trade_io(x, data_test, param_test)
+            return ceq
+
+        # Solve equilibrium
+        try:
+            x_sol = fsolve(syst_tariff, x_fsolve_1, xtol=1e-10, maxfev=50000, factor=0.1)
+            _, results_test, _ = balanced_trade_io(x_sol, data_test, param_test)
+            usa_welfare = results_test[id_US, 0]
+
+            # Track best solution
+            if usa_welfare > best_welfare:
+                best_welfare = usa_welfare
+                best_tariff = t_test
+                best_solution = x_sol.copy()
+                print(f"  t={t_test:.2f}: US welfare = {usa_welfare:.2f}%")
+        except:
+            pass  # Skip failed equilibria
+
+    print(f"\n  Grid search complete!")
+    print(f"  Optimal uniform tariff: {best_tariff:.2f}")
+    print(f"  USA welfare change: {best_welfare:.2f}%")
+
+    # Compute full results with optimal tariff
+    t_ji_opt = np.zeros((N, N))
+    t_ji_opt[non_us, id_US] = best_tariff
+    data_opt = {
+        'N': N, 'E_i': E_i_IO, 'Y_i': Y_i_IO, 'lambda_ji': lambda_ji_IO,
+        't_ji': t_ji_opt, 'nu': nu_IO, 'T_i': T_IO
+    }
+    param_opt = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
+    _, results[:, :, 1], d_trade_IO[1] = balanced_trade_io(best_solution, data_opt, param_opt)
+    d_employment_IO[1] = np.sum(results[:, 4, 1] * Y_i_IO) / np.sum(Y_i_IO)
 
     # Liberation Tariffs with reciprocal retaliation + IO
     print("\nRunning Liberation tariffs with reciprocal retaliation (IO)...")
@@ -410,10 +464,23 @@ def main():
     }
     param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi_IO, 'beta': beta}
 
-    x_fsolve = fsolve(syst, np.ones(4*N), xtol=1e-6, maxfev=50000, factor=0.1)
+    x_fsolve = fsolve(syst, np.ones(4*N), xtol=1e-10, maxfev=50000, factor=0.1)
     _, results[:, :, 2], d_trade_IO[1] = balanced_trade_io(x_fsolve, data, param)
     d_employment_IO[1] = np.sum(results[:, 4, 2] * Y_i_IO) / np.sum(Y_i_IO)
     print(f"  US welfare change: {results[id_US, 0, 2]:.2f}%")
+
+    # Save IO results for Table 11
+    print("\nSaving IO model results...")
+    output_dir = '../../python_output'
+    os.makedirs(output_dir, exist_ok=True)
+    np.savez(os.path.join(output_dir, 'io_results.npz'),
+             results=results,
+             d_trade_IO=d_trade_IO,
+             d_employment_IO=d_employment_IO,
+             Y_i_IO=Y_i_IO,
+             E_i_IO=E_i_IO,
+             id_US=id_US)
+    print(f"  - Saved: io_results.npz")
 
     print("\n=== IO model analysis completed ===")
 

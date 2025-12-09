@@ -461,6 +461,24 @@ def main():
     output_path = os.path.join(base_path, output_dir, 'output_map_retal.csv')
     Tab.to_csv(output_path, index=False)
 
+    # Save parameters for multi-sector models
+    print("\nSaving parameters for multi-sector models...")
+    pd.DataFrame({'phi': Phi[1]}).to_csv(os.path.join(base_path, output_dir, 'phi_values.csv'), index=False)
+    pd.DataFrame({'nu': nu}).to_csv(os.path.join(base_path, output_dir, 'nu_values.csv'), index=False)
+    pd.DataFrame({'Y_i': Y_i}).to_csv(os.path.join(base_path, output_dir, 'Y_i_baseline.csv'), index=False)
+
+    # Save baseline results (d_trade, d_employment) for Table 11
+    np.savez(os.path.join(base_path, output_dir, 'baseline_results.npz'),
+             results=results,
+             d_trade=d_trade,
+             d_employment=d_employment,
+             revenue=revenue,
+             Y_i=Y_i,
+             E_i=E_i,
+             id_US=id_US)
+    print(f"  - Saved: phi_values.csv, nu_values.csv, Y_i_baseline.csv")
+    print(f"  - Saved: baseline_results.npz")
+
     # Generate LaTeX tables
     import sys
     sys.path.insert(0, os.path.dirname(__file__))

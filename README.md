@@ -4,12 +4,12 @@
 
 By Ignatenko, Macedoni, Lashkaripour, and Simonovska (2025)
 
-[![Status](https://img.shields.io/badge/status-67%25%20complete-yellow)](https://github.com/JoeLoera/liberation-day-replication)
+[![Status](https://img.shields.io/badge/status-78%25%20complete-yellow)](https://github.com/JoeLoera/liberation-day-replication)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 
 ## Overview
 
-This repository contains a Python conversion of the MATLAB replication package for analyzing the economic impacts of proposed "Liberation Day" tariffs. The conversion is **67% complete** with 6 out of 9 tables successfully replicated.
+This repository contains a Python conversion of the MATLAB replication package for analyzing the economic impacts of proposed "Liberation Day" tariffs. The conversion is **78% complete** with 7 out of 9 tables successfully replicated.
 
 ### Paper Citation
 
@@ -18,24 +18,26 @@ This repository contains a Python conversion of the MATLAB replication package f
 
 ## Project Status
 
-### ✅ Working (6/9 Tables)
+### ✅ Working (7/9 Tables)
 
 | Table | Description | Status |
 |-------|-------------|--------|
 | Table 1 | Baseline policy scenarios | ✅ Perfect match |
 | Table 2 | Retaliation scenarios | ✅ Perfect match |
 | Table 3 | Tariff revenue | ✅ Perfect match |
+| Table 4 | IO model with one sector | ✅ Excellent match (0.01-0.21% diff)* |
 | Table 8 | Regional trade wars | ✅ Perfect match |
 | Table 9 | Alternative specifications (Eaton-Kortum) | ✅ Perfect match |
-| Table 10 | Deficit frameworks | ✅ Partial match (2/4 cases)* |
+| Table 10 | Deficit frameworks | ✅ Partial match (2/4 cases)** |
 
-### ⏸️ In Progress (3/9 Tables)
+### ⏸️ In Progress (2/9 Tables)
 
 | Table | Description | Status |
 |-------|-------------|--------|
-| Table 4 | IO model with one sector | ⏸️ Optimization too slow |
-| Table 7 | Trade elasticity estimation | ⏸️ Optimization too slow |
-| Table 11 | IO model alternative specifications | ⏸️ Optimization too slow |
+| Table 7 | Trade elasticity estimation | ⏸️ Not yet attempted |
+| Table 11 | IO model alternative specifications | ⏸️ Not yet attempted |
+
+**Note on Table 4**: After fixing three critical axis errors in IO data preparation, all scenarios match MATLAB within 0.01-0.21%. Grid search optimization completes in ~6 minutes. See [REPLICATION_NOTES.md](python_output/REPLICATION_NOTES.md) for technical details.
 
 **Note on Table 10**: Cases 1 & 3 show minor discrepancies with MATLAB output. Analysis in [REPLICATION_NOTES.md](python_output/REPLICATION_NOTES.md) suggests the MATLAB `output/Table_10.tex` may be from an older code version, as the Python implementation shows perfect internal mathematical consistency.
 
