@@ -81,41 +81,13 @@ def balanced_trade_multisector(x, data, param):
     tau_i_new = 0
     tau_i_h = (1 - tau_i_new) / (1 - tau_i)
 
-    # Check for problematic values
-    if np.any(tau_i > 0.99):
-        print(f"WARNING: tau_i > 0.99 detected! Max tau_i = {np.max(tau_i):.4f}")
-        print(f"Countries with high tau_i: {np.where(tau_i > 0.99)[0]}")
-
     # Labor supply equation: L_i = (tau_i * w_i / P_i)^kappa
-    labor_term = tau_i_h * w_i_h / P_i_h
-    if np.any(labor_term < 0):
-        print(f"WARNING: Negative labor_term detected! Min = {np.min(labor_term):.4f}")
-
-    ERR3 = L_i_h - labor_term**kappa
+    ERR3 = L_i_h - (tau_i_h * w_i_h / P_i_h)**kappa
 
     # ERR4: Sectoral labor shares sum to 1 (N equations)
     ERR4 = 100 * (np.sum(ell_ik * ell_ik_h, axis=2).reshape(N) - 1)
 
     ceq = np.concatenate([ERR1, ERR2, ERR3, ERR4])
-
-    # Debug: Check equation magnitudes at first call
-    if not hasattr(balanced_trade_multisector, 'debug_printed'):
-        print(f"ERR1 shape: {ERR1.shape}, max: {np.max(np.abs(ERR1)):.2e}")
-        print(f"ERR2 shape: {ERR2.shape}, max: {np.max(np.abs(ERR2)):.2e}")
-        print(f"ERR3 shape: {ERR3.shape}, max: {np.max(np.abs(ERR3)):.2e}")
-        print(f"ERR4 shape: {ERR4.shape}, max: {np.max(np.abs(ERR4)):.2e}")
-        print(f"Total ceq shape: {ceq.shape}, max: {np.max(np.abs(ceq)):.2e}")
-        print(f"E_i scale: min={np.min(E_i):.2e}, max={np.max(E_i):.2e}, mean={np.mean(E_i):.2e}")
-        print(f"Y_i scale: min={np.min(Y_i):.2e}, max={np.max(Y_i):.2e}, mean={np.mean(Y_i):.2e}")
-        print(f"Relative ERR2 (max ERR2 / max E_i): {np.max(np.abs(ERR2)) / np.max(E_i):.2e}")
-        # Check which country has the max ERR2
-        idx_max_err2 = np.argmax(np.abs(ERR2))
-        print(f"Country with max ERR2: index {idx_max_err2}")
-        print(f"  tariff_rev[{idx_max_err2}] = {tariff_rev[idx_max_err2]:.2e}")
-        print(f"  w_i_h[{idx_max_err2}] * L_i_h[{idx_max_err2}] * Y_i[{idx_max_err2}] = {(w_i_h * L_i_h * Y_i)[idx_max_err2]:.2e}")
-        print(f"  T_i[{idx_max_err2}] * (X_global_new / X_global) = {(T_i * (X_global_new / X_global))[idx_max_err2]:.2e}")
-        print(f"  E_i_new[{idx_max_err2}] = {E_i_new[idx_max_err2]:.2e}")
-        balanced_trade_multisector.debug_printed = True
 
     # Calculate results (baseline trade flows)
     # MATLAB: X_ji = lambda_ji.*beta_i.*repmat(E_i',N,1) where E_i is (N x 1)
@@ -143,19 +115,6 @@ def balanced_trade_multisector(x, data, param):
     # Global trade change
     trade = X_ji * np.tile((1 - np.eye(N)).reshape(N, N, 1), (1, 1, K))
     trade_new = X_ji_new * (1 + t_ji) * np.tile((1 - np.eye(N)).reshape(N, N, 1), (1, 1, K))
-
-    # Debug output
-    if np.max(np.abs(ceq)) < 1e-6:  # Only print when converged
-        trade_sum = np.sum(trade)
-        trade_new_sum = np.sum(trade_new)
-        Y_sum = np.sum(Y_i)
-        Y_new_sum = np.sum(Y_i_new)
-        trade_ratio = trade_new_sum / trade_sum if trade_sum > 0 else 0
-        gdp_ratio = Y_new_sum / Y_sum if Y_sum > 0 else 0
-        print(f"DEBUG: trade_sum={trade_sum:.2e}, trade_new_sum={trade_new_sum:.2e}, ratio={trade_ratio:.4f}")
-        print(f"DEBUG: Y_sum={Y_sum:.2e}, Y_new_sum={Y_new_sum:.2e}, ratio={gdp_ratio:.4f}")
-        print(f"DEBUG: trade_ratio/gdp_ratio={trade_ratio/gdp_ratio:.4f}")
-
     d_trade = 100 * ((np.sum(trade_new) / np.sum(trade)) / (np.sum(Y_i_new) / np.sum(Y_i)) - 1)
 
     return ceq, results, d_trade
@@ -268,8 +227,9 @@ def main():
         return ceq
 
     print("Solving equilibrium...")
-    # Use fsolve with default algorithm (matches MATLAB's trust-region-dogleg)
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=50000)
+    # Use fsolve with very high iteration limit (matches MATLAB's MaxIter=inf)
+    # scipy default maxfev is 200*(N+1) ≈ 271,800, but MATLAB uses unlimited
+    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=1000000)
 
     # Check convergence
     ceq_final = syst(x_fsolve)
@@ -294,8 +254,8 @@ def main():
     data = [N, K, E_i_multi, Y_i_multi, lambda_ji, beta_i, ell_ik, t_ji, nu, T]
 
     print("Solving equilibrium...")
-    # Use fsolve with default algorithm (matches MATLAB's trust-region-dogleg)
-    x_fsolve = fsolve(syst, x_fsolve, xtol=1e-10, maxfev=50000)
+    # Use fsolve with very high iteration limit (matches MATLAB's MaxIter=inf)
+    x_fsolve = fsolve(syst, x_fsolve, xtol=1e-10, maxfev=1000000)
 
     # Check convergence
     ceq_final = syst(x_fsolve)
