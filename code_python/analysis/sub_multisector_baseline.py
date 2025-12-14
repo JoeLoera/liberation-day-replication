@@ -227,9 +227,11 @@ def main():
         return ceq
 
     print("Solving equilibrium...")
-    # Use fsolve with very high iteration limit (matches MATLAB's MaxIter=inf)
-    # scipy default maxfev is 200*(N+1) ≈ 271,800, but MATLAB uses unlimited
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=1000000)
+    # Use fsolve with full diagnostics
+    x_fsolve, infodict, ier, mesg = fsolve(syst, x0, xtol=1e-10, full_output=True)
+
+    print(f"Solver status (ier={ier}): {mesg}")
+    print(f"Function calls: {infodict['nfev']}")
 
     # Check convergence
     ceq_final = syst(x_fsolve)
@@ -254,8 +256,11 @@ def main():
     data = [N, K, E_i_multi, Y_i_multi, lambda_ji, beta_i, ell_ik, t_ji, nu, T]
 
     print("Solving equilibrium...")
-    # Use fsolve with very high iteration limit (matches MATLAB's MaxIter=inf)
-    x_fsolve = fsolve(syst, x_fsolve, xtol=1e-10, maxfev=1000000)
+    # Use fsolve with full diagnostics (warm start from previous solution)
+    x_fsolve, infodict, ier, mesg = fsolve(syst, x_fsolve, xtol=1e-10, full_output=True)
+
+    print(f"Solver status (ier={ier}): {mesg}")
+    print(f"Function calls: {infodict['nfev']}")
 
     # Check convergence
     ceq_final = syst(x_fsolve)
