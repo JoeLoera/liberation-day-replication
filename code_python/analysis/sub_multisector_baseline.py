@@ -5,7 +5,7 @@ Generates results for Table 11 columns: "multi" (before & after retaliation)
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import root
+from scipy.optimize import fsolve
 import sys
 import os
 
@@ -60,13 +60,16 @@ def balanced_trade_multisector(x, data, param):
     # Equilibrium equations
     nu_3D = np.tile(nu.reshape(1, -1, 1), (N, 1, K))
 
+    # Price index (needed for ERR1 replacement)
+    P_i_h = (E_i_h / w_i_h)**(1 - phi) * np.prod(np.sum(AUX0, axis=0, keepdims=True)**(-beta_i[0:1, :, :] / eps[0:1, :, :]), axis=2).reshape(-1)
+
     # ERR1: Sectoral income balance (N*K equations)
     Y_ik_h = w_i_3D[:, 0:1, :] * L_ik_3D[:, 0:1, :]
     Y_ik = ell_ik * np.tile(Y_i.reshape(-1, 1, 1), (1, 1, K))
     Y_ik_cf = np.sum((1 - nu_3D) * X_ji_new, axis=1, keepdims=True) + \
               np.transpose(np.sum(nu_3D * X_ji_new, axis=0, keepdims=True), (1, 0, 2))
     ERR1 = (Y_ik_cf - Y_ik * Y_ik_h).reshape(N*K)
-    ERR1[N-1] = np.sum((E_i_h - 1) * E_i)  # Replace one redundant equation
+    ERR1[N-1] = np.mean((P_i_h - 1) * E_i)  # Replace one redundant equation (matches MATLAB)
 
     # ERR2: Income = Sales + Transfers (N equations)
     X_global = np.sum(Y_i)
@@ -77,27 +80,54 @@ def balanced_trade_multisector(x, data, param):
     tau_i = tariff_rev / Y_i_new  # Tariff revenue as fraction of NEW income
     tau_i_new = 0
     tau_i_h = (1 - tau_i_new) / (1 - tau_i)
-    P_i_h = (E_i_h / w_i_h)**(1 - phi) * np.prod(np.sum(AUX0, axis=0, keepdims=True)**(-beta_i[0:1, :, :] / eps[0:1, :, :]), axis=2).reshape(-1)
 
-    # Handle complex numbers like MATLAB when term is negative (kappa=0.5 is square root)
+    # Check for problematic values
+    if np.any(tau_i > 0.99):
+        print(f"WARNING: tau_i > 0.99 detected! Max tau_i = {np.max(tau_i):.4f}")
+        print(f"Countries with high tau_i: {np.where(tau_i > 0.99)[0]}")
+
+    # Labor supply equation: L_i = (tau_i * w_i / P_i)^kappa
     labor_term = tau_i_h * w_i_h / P_i_h
-    # Use complex power, then take real part (matches MATLAB behavior)
-    ERR3 = L_i_h - np.real(np.power(labor_term.astype(complex), kappa))
+    if np.any(labor_term < 0):
+        print(f"WARNING: Negative labor_term detected! Min = {np.min(labor_term):.4f}")
+
+    ERR3 = L_i_h - labor_term**kappa
 
     # ERR4: Sectoral labor shares sum to 1 (N equations)
     ERR4 = 100 * (np.sum(ell_ik * ell_ik_h, axis=2).reshape(N) - 1)
 
     ceq = np.concatenate([ERR1, ERR2, ERR3, ERR4])
 
-    # Calculate results
-    X_ji = lambda_ji * beta_i * np.tile(E_i.reshape(1, -1, 1), (N, 1, K))
+    # Debug: Check equation magnitudes at first call
+    if not hasattr(balanced_trade_multisector, 'debug_printed'):
+        print(f"ERR1 shape: {ERR1.shape}, max: {np.max(np.abs(ERR1)):.2e}")
+        print(f"ERR2 shape: {ERR2.shape}, max: {np.max(np.abs(ERR2)):.2e}")
+        print(f"ERR3 shape: {ERR3.shape}, max: {np.max(np.abs(ERR3)):.2e}")
+        print(f"ERR4 shape: {ERR4.shape}, max: {np.max(np.abs(ERR4)):.2e}")
+        print(f"Total ceq shape: {ceq.shape}, max: {np.max(np.abs(ceq)):.2e}")
+        print(f"E_i scale: min={np.min(E_i):.2e}, max={np.max(E_i):.2e}, mean={np.mean(E_i):.2e}")
+        print(f"Y_i scale: min={np.min(Y_i):.2e}, max={np.max(Y_i):.2e}, mean={np.mean(Y_i):.2e}")
+        print(f"Relative ERR2 (max ERR2 / max E_i): {np.max(np.abs(ERR2)) / np.max(E_i):.2e}")
+        # Check which country has the max ERR2
+        idx_max_err2 = np.argmax(np.abs(ERR2))
+        print(f"Country with max ERR2: index {idx_max_err2}")
+        print(f"  tariff_rev[{idx_max_err2}] = {tariff_rev[idx_max_err2]:.2e}")
+        print(f"  w_i_h[{idx_max_err2}] * L_i_h[{idx_max_err2}] * Y_i[{idx_max_err2}] = {(w_i_h * L_i_h * Y_i)[idx_max_err2]:.2e}")
+        print(f"  T_i[{idx_max_err2}] * (X_global_new / X_global) = {(T_i * (X_global_new / X_global))[idx_max_err2]:.2e}")
+        print(f"  E_i_new[{idx_max_err2}] = {E_i_new[idx_max_err2]:.2e}")
+        balanced_trade_multisector.debug_printed = True
+
+    # Calculate results (baseline trade flows)
+    # MATLAB: X_ji = lambda_ji.*beta_i.*repmat(E_i',N,1) where E_i is (N x 1)
+    # repmat(E_i', N, 1) broadcasts E_i (as row vector) to (N x N)
+    # Then MATLAB broadcasts (N x N) to (N x N x K) automatically
+    X_ji = lambda_ji * beta_i * E_i.reshape(1, -1, 1)  # Natural broadcasting
     D_i = np.sum(np.sum(X_ji, axis=2), axis=0) - np.sum(np.sum(X_ji, axis=2), axis=1)
     D_i_new = np.sum(np.sum(X_ji_new, axis=2), axis=0) - np.sum(np.sum(X_ji_new, axis=2), axis=1)
 
-    Ec_i = Y_i + T_i
-    delta_i = Ec_i / (Ec_i - kappa * (1 - tau_i) * Y_i / (1 + kappa))
-    Ec_i_h = (tariff_rev + (w_i_h * L_i_h * Y_i) + T_i * (X_global_new / X_global)) / Ec_i
-    W_i_h = delta_i * (Ec_i_h / P_i_h) + (1 - delta_i) * (w_i_h * L_i_h / P_i_h)
+    # Welfare calculation (matches MATLAB lines 162-163)
+    delta_i = E_i / (E_i - kappa * (1 - tau_i) * Y_i / (1 + kappa))
+    W_i_h = delta_i * (E_i_h / P_i_h) + (1 - delta_i) * (w_i_h * L_i_h / P_i_h)
 
     d_welfare = 100 * (W_i_h - 1)
     d_export = 100 * ((np.sum(np.sum(X_ji_new, axis=2) * (1 - np.eye(N)), axis=1) / Y_i_new) / \
@@ -183,24 +213,28 @@ def main():
     nu_data = pd.read_csv(os.path.join(output_dir, 'nu_values.csv'))
     nu = nu_data['nu'].values[idx]
 
-    # Sectoral parameters
-    beta = np.array([0.51, 0.32, 0.49, 0.56])
-    beta_3D = np.tile(beta.reshape(1, 1, -1), (N, N, 1))
-    nu_3D = np.tile(nu.reshape(1, -1, 1), (N, 1, K))
-
-    # Calculate initial values
+    # Calculate initial values (MATLAB lines 47-49)
+    # E_i = sum(sum(X_ji,1),3)' - total expenditure
     E_i_multi = np.sum(np.sum(X_ji, axis=0), axis=1)
-    Y_i_multi = np.sum(np.sum((1 - nu_3D) * beta_3D * X_ji, axis=2), axis=1) + \
-                np.sum(np.sum(nu_3D * X_ji, axis=0), axis=1)
-    T = E_i_multi - (Y_i_multi + np.sum(np.sum((1 - beta_3D) * (1 - nu_3D) * X_ji, axis=2), axis=1))
+    # Y_i = sum( repmat((1-nu)',N,1).*sum(X_ji,3) , 2) + nu.*sum(sum(X_ji,1),3)'
+    Y_i_multi = np.sum((1 - nu).reshape(-1, 1) * np.sum(X_ji, axis=2), axis=1) + \
+                nu * np.sum(np.sum(X_ji, axis=0), axis=1)
+    # T = E_i - Y_i
+    T = E_i_multi - Y_i_multi
 
+    # Calculate trade share and expenditure share parameters (MATLAB lines 52-53)
     lambda_ji = X_ji / np.tile(np.sum(X_ji, axis=0, keepdims=True), (N, 1, 1))
     beta_i = np.tile(np.sum(X_ji, axis=0, keepdims=True), (N, 1, 1)) / \
              np.tile(E_i_multi.reshape(1, -1, 1), (N, 1, K))
 
-    Y_ik_p = np.sum((1 - nu_3D) * beta_3D * X_ji, axis=1, keepdims=True)
-    Y_ik_f = np.transpose(np.sum(nu_3D * X_ji, axis=0, keepdims=True), (1, 0, 2))
-    Y_ik = Y_ik_p + Y_ik_f
+    # Calculate sectoral income shares (MATLAB lines 55-58)
+    # Y_ik_p = sum( repmat((1-nu)',[ N 1 K]).* X_ji , 2)
+    Y_ik_p = np.sum(np.tile((1 - nu).reshape(1, -1, 1), (N, 1, K)) * X_ji, axis=1, keepdims=True)
+    # Y_ik_f = repmat(nu',[1 1 K]).*sum(X_ji, 1)
+    Y_ik_f = np.tile(nu.reshape(1, -1, 1), (1, 1, K)) * np.sum(X_ji, axis=0, keepdims=True)
+    # Y_ik = Y_ik_p + permute(Y_ik_f, [2 1 3])
+    Y_ik = Y_ik_p + np.transpose(Y_ik_f, (1, 0, 2))
+    # ell_ik = Y_ik./repmat( Y_i_multi, [1 1 K])
     ell_ik = Y_ik / np.tile(Y_i_multi.reshape(-1, 1, 1), (1, 1, K))
 
     # Trade elasticities
@@ -234,9 +268,12 @@ def main():
         return ceq
 
     print("Solving equilibrium...")
-    # Use Levenberg-Marquardt algorithm to match MATLAB
-    sol = root(syst, x0, method='lm', options={'xtol': 1e-10, 'ftol': 1e-10, 'maxiter': 50000})
-    x_fsolve = sol.x
+    # Use fsolve with default algorithm (matches MATLAB's trust-region-dogleg)
+    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=50000)
+
+    # Check convergence
+    ceq_final = syst(x_fsolve)
+    print(f"Max equilibrium error: {np.max(np.abs(ceq_final)):.2e}")
 
     _, results_multi[:, :, 0], d_trade_multi[0] = balanced_trade_multisector(x_fsolve, data, param)
     d_employment_multi[0] = np.sum(results_multi[:, 4, 0] * Y_i_multi) / np.sum(Y_i_multi)
@@ -257,9 +294,12 @@ def main():
     data = [N, K, E_i_multi, Y_i_multi, lambda_ji, beta_i, ell_ik, t_ji, nu, T]
 
     print("Solving equilibrium...")
-    # Use Levenberg-Marquardt algorithm to match MATLAB
-    sol = root(syst, x_fsolve, method='lm', options={'xtol': 1e-10, 'ftol': 1e-10, 'maxiter': 50000})
-    x_fsolve = sol.x
+    # Use fsolve with default algorithm (matches MATLAB's trust-region-dogleg)
+    x_fsolve = fsolve(syst, x_fsolve, xtol=1e-10, maxfev=50000)
+
+    # Check convergence
+    ceq_final = syst(x_fsolve)
+    print(f"Max equilibrium error: {np.max(np.abs(ceq_final)):.2e}")
 
     _, results_multi[:, :, 1], d_trade_multi[1] = balanced_trade_multisector(x_fsolve, data, param)
     d_employment_multi[1] = np.sum(results_multi[:, 4, 1] * Y_i_multi) / np.sum(Y_i_multi)
