@@ -5,7 +5,7 @@ Generates results for Table 11 columns: "multi" (before & after retaliation)
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, root
 import sys
 import os
 
@@ -33,7 +33,8 @@ def balanced_trade_multisector(x, data, param):
     w_i_h = np.abs(x[:N])
     E_i_h = np.abs(x[N:2*N])
     L_i_h = np.abs(x[2*N:3*N])
-    ell_ik_h = np.abs(x[3*N:]).reshape((N, 1, K))
+    # CRITICAL: Use Fortran order ('F') to match MATLAB's reshape behavior
+    ell_ik_h = np.abs(x[3*N:]).reshape((N, 1, K), order='F')
 
     # Construct 3D arrays
     w_i_3D = np.tile(w_i_h.reshape(-1, 1, 1), (1, N, K))
@@ -68,7 +69,8 @@ def balanced_trade_multisector(x, data, param):
     Y_ik = ell_ik * np.tile(Y_i.reshape(-1, 1, 1), (1, 1, K))
     Y_ik_cf = np.sum((1 - nu_3D) * X_ji_new, axis=1, keepdims=True) + \
               np.transpose(np.sum(nu_3D * X_ji_new, axis=0, keepdims=True), (1, 0, 2))
-    ERR1 = (Y_ik_cf - Y_ik * Y_ik_h).reshape(N*K)
+    # CRITICAL: Use Fortran order ('F') to match MATLAB's reshape behavior
+    ERR1 = (Y_ik_cf - Y_ik * Y_ik_h).reshape(N*K, order='F')
     ERR1[N-1] = np.mean((P_i_h - 1) * E_i)  # Replace one redundant equation (matches MATLAB)
 
     # ERR2: Income = Sales + Transfers (N equations)
@@ -135,7 +137,9 @@ def main():
     X = trade_data.iloc[:, 3].values
     N = 194
     K = 4
-    X_ji = X.reshape((N, N, K))
+    # CRITICAL: Use Fortran order ('F') to match how the CSV data is stored
+    # CSV is ordered: exporter varies fastest, then importer, then sector (MATLAB-like)
+    X_ji = X.reshape((N, N, K), order='F')
 
     # Remove countries with no trade FIRST
     problematic_id = np.sum(np.all(X_ji == 0, axis=0), axis=1)
@@ -156,11 +160,16 @@ def main():
     # Filter tariffs to match filtered countries
     new_ustariff = new_ustariff_full[idx, :]
 
-    id_US = 185 - 1  # Convert to 0-indexed (before filtering)
-    id_US_new = np.where(idx == id_US + 1)[0][0]  # Find US index after filtering
+    # US is at index 184 in the original 0-indexed array (alphabetically sorted countries)
+    id_US = 184
+    # After filtering, find where US (index 184) is in the filtered idx array
+    id_US_new = np.where(idx == id_US)[0][0]
 
     t_ji = np.zeros((N, N, K))
-    t_ji[:, id_US_new, :K-1] = np.tile(new_ustariff, (1, 1, K-1))
+    # MATLAB: t_ji(:,id_US,1:K-1)=repmat(new_ustariff, [1 1 K-1])
+    # new_ustariff is (N, 1), we need to tile to (N, K-1)
+    # np.tile((N,1), (1, K-1)) gives (N, K-1) which is correct
+    t_ji[:, id_US_new, :K-1] = np.tile(new_ustariff, (1, K-1))
     t_ji[:, id_US_new, :K-1] = np.maximum(0.1, t_ji[:, id_US_new, :K-1])
     t_ji[id_US_new, id_US_new, :K-1] = 0
 
@@ -176,7 +185,9 @@ def main():
     # E_i = sum(sum(X_ji,1),3)' - total expenditure
     E_i_multi = np.sum(np.sum(X_ji, axis=0), axis=1)
     # Y_i = sum( repmat((1-nu)',N,1).*sum(X_ji,3) , 2) + nu.*sum(sum(X_ji,1),3)'
-    Y_i_multi = np.sum((1 - nu).reshape(-1, 1) * np.sum(X_ji, axis=2), axis=1) + \
+    # NOTE: (1-nu)' in MATLAB is (1 x N), so we need reshape(1, -1) NOT reshape(-1, 1)
+    # reshape(1, -1) broadcasts as nu_i (importer), reshape(-1, 1) would be nu_j (exporter) - WRONG
+    Y_i_multi = np.sum((1 - nu).reshape(1, -1) * np.sum(X_ji, axis=2), axis=1) + \
                 nu * np.sum(np.sum(X_ji, axis=0), axis=1)
     # T = E_i - Y_i
     T = E_i_multi - Y_i_multi
@@ -197,9 +208,10 @@ def main():
     ell_ik = Y_ik / np.tile(Y_i_multi.reshape(-1, 1, 1), (1, 1, K))
 
     # Trade elasticities
-    Y_i_baseline = pd.read_csv(os.path.join(output_dir, 'Y_i_baseline.csv'))['Y_i'].values[idx]
-    phi_baseline = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))['phi'].values[idx]
-    phi_avg = np.sum(phi_baseline * Y_i_baseline) / np.sum(Y_i_baseline)
+    # MATLAB line 65: phi_avg=sum(Phi{1}.*Y_i)./sum(Y_i) uses UNFILTERED values
+    Y_i_baseline_full = pd.read_csv(os.path.join(output_dir, 'Y_i_baseline.csv'))['Y_i'].values
+    phi_baseline_full = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))['phi'].values
+    phi_avg = np.sum(phi_baseline_full * Y_i_baseline_full) / np.sum(Y_i_baseline_full)
     eps = np.array([3.3, 3.8, 4.1]) / phi_avg
     eps = np.append(eps, 3.0)  # Services sector
     eps_3D = np.tile(eps.reshape(1, 1, -1), (N, N, 1))
@@ -220,6 +232,7 @@ def main():
     data = [N, K, E_i_multi, Y_i_multi, lambda_ji, beta_i, ell_ik, t_ji, nu, T]
     param = [eps_3D, kappa, psi, phi]
 
+    # Initial guess: all ones (matching MATLAB exactly)
     x0 = np.concatenate([np.ones(N), np.ones(N), np.ones(N), np.ones(N*K)])
 
     def syst(x):
@@ -227,13 +240,15 @@ def main():
         return ceq
 
     print("Solving equilibrium...")
-    # Use fsolve with full diagnostics
-    x_fsolve, infodict, ier, mesg = fsolve(syst, x0, xtol=1e-10, full_output=True)
+    # Try Levenberg-Marquardt algorithm (similar to MATLAB's trust-region)
+    print("  Using Levenberg-Marquardt algorithm...")
+    sol = root(syst, x0, method='lm', options={'ftol': 1e-10, 'xtol': 1e-10, 'maxiter': 1000000})
 
-    print(f"Solver status (ier={ier}): {mesg}")
-    print(f"Function calls: {infodict['nfev']}")
+    print(f"Solver status: {sol.message}")
+    print(f"Success: {sol.success}")
+    print(f"Function calls: {sol.nfev}")
 
-    # Check convergence
+    x_fsolve = sol.x
     ceq_final = syst(x_fsolve)
     print(f"Max equilibrium error: {np.max(np.abs(ceq_final)):.2e}")
 
@@ -256,13 +271,15 @@ def main():
     data = [N, K, E_i_multi, Y_i_multi, lambda_ji, beta_i, ell_ik, t_ji, nu, T]
 
     print("Solving equilibrium...")
-    # Use fsolve with full diagnostics (warm start from previous solution)
-    x_fsolve, infodict, ier, mesg = fsolve(syst, x_fsolve, xtol=1e-10, full_output=True)
+    # Use Levenberg-Marquardt with warm start from scenario 1
+    print("  Using Levenberg-Marquardt algorithm (warm start)...")
+    sol = root(syst, x_fsolve, method='lm', options={'ftol': 1e-10, 'xtol': 1e-10, 'maxiter': 1000000})
 
-    print(f"Solver status (ier={ier}): {mesg}")
-    print(f"Function calls: {infodict['nfev']}")
+    print(f"Solver status: {sol.message}")
+    print(f"Success: {sol.success}")
+    print(f"Function calls: {sol.nfev}")
 
-    # Check convergence
+    x_fsolve = sol.x
     ceq_final = syst(x_fsolve)
     print(f"Max equilibrium error: {np.max(np.abs(ceq_final)):.2e}")
 

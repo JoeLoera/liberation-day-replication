@@ -1,140 +1,108 @@
-# Python Conversion of Trade Model
+# Python Replication Package
 
-This directory contains Python conversions of the MATLAB replication package for:
+Python implementation of the economic models from:
 
 **"Making America Great Again? The Economic Impacts of Liberation Day Tariffs"**
 by Anna Ignatenko, Luca Macedoni, Ahmad Lashkaripour, Ina Simonovska (2025)
 
-## Status of Conversion
+## Quick Start
 
-### Completed:
-- ✅ `utils/solver_utils.py` - Common solver functions (solve_nu, eq_fun)
-- ✅ `analysis/main_baseline.py` - Baseline trade model
-- ✅ `analysis/sub_multisector_baseline.py` - Multi-sector extension
-
-### In Progress:
-- 🔄 `analysis/print_tables_baseline.py` - LaTeX table generation
-- 🔄 `analysis/main_io.py` - Input-output model
-- 🔄 `analysis/main_regional.py` - Regional trade war analysis
-- 🔄 `analysis/main_deficit.m` - Alternative deficit framework
-
-## Installation
-
-1. Install required packages:
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-2. Verify data files are in place:
-- `../../data/base_data/trade_cepii.csv`
-- `../../data/base_data/gdp.csv`
-- `../../data/base_data/tariffs.csv`
-- `../../data/ITPDS/trade_ITPD.csv`
-
-## Usage
-
-### Run Baseline Analysis
-
-```bash
-cd code_python/analysis
+# Run baseline model (Tables 1-3, 8-9)
+cd analysis
 python main_baseline.py
+
+# Run multi-sector models (Tables 4, 11)
+python sub_multisector_baseline.py
+python sub_multisector_io.py
+python generate_table_4.py
+python generate_table_11.py
 ```
 
-This will:
-- Read trade and GDP data
-- Solve for equilibrium under various tariff scenarios
-- Generate output files in `../../output/`
-- Print results to console
+## Replication Status
 
-## Key Differences from MATLAB
+| Tables | Status | Description |
+|--------|--------|-------------|
+| 1, 2, 3 | ✅ Exact | Baseline policy & retaliation scenarios |
+| 8 | ✅ Exact | Regional trade wars |
+| 9 | ✅ Exact | Alternative specifications |
+| 4 | ⚠️ Close | Multi-sector welfare (~0.1% diff) |
+| 10 | ⚠️ Partial | Deficit framework (2/4 match) |
+| 11 | ⚠️ Close | Single-sector exact, multi-sector close |
 
-### Indexing
-- **MATLAB**: 1-indexed (id_US = 185)
-- **Python**: 0-indexed (id_US = 184)
+See `python_output/TABLE_OVERVIEW.md` for detailed comparison.
 
-### Arrays
-- **MATLAB**: `repmat()` → **Python**: `np.tile()`
-- **MATLAB**: `eye(N)` → **Python**: `np.eye(N)`
-- **MATLAB**: `.` → **Python**: `*` (element-wise multiply)
+## Project Structure
 
-### Solvers
-- **MATLAB**: `fsolve()` with optimoptions
-- **Python**: `scipy.optimize.fsolve()` with xtol parameter
+```
+code_python/
+├── analysis/
+│   ├── main_baseline.py           # Single-sector baseline (Tables 1-3, 9)
+│   ├── main_io.py                 # Input-output model
+│   ├── main_regional.py           # Regional trade wars (Table 8)
+│   ├── main_deficit.py            # Deficit framework (Table 10)
+│   ├── sub_multisector_baseline.py   # Multi-sector K=4 (Tables 4, 11)
+│   ├── sub_multisector_io.py      # Multi-sector + IO linkages
+│   ├── generate_table_4.py        # Table 4 generator
+│   ├── generate_table_11.py       # Table 11 generator
+│   ├── print_tables_baseline.py   # LaTeX table output
+│   ├── _debug/                    # Debug scripts (development only)
+│   └── _experimental/             # Experimental solvers
+├── utils/                         # Utility functions
+├── config.py                      # Configuration
+└── requirements.txt               # Dependencies
+```
 
-### File I/O
-- **MATLAB**: `readtable()` → **Python**: `pd.read_csv()`
-- **MATLAB**: `table2array()` → **Python**: `.values`
+## Output
 
-## Model Structure
+Results are saved to `python_output/`:
+- `Table_*.tex` - LaTeX formatted tables
+- `*_results.npz` - NumPy compressed arrays
+- `*.csv` - Parameter exports
 
-### Baseline Model (`main_baseline.py`)
+## Model Overview
 
-The baseline model solves for general equilibrium under:
+### Single-Sector Baseline (`main_baseline.py`)
 - N = 194 countries
-- Various tariff scenarios:
-  1. USTR tariffs + income tax relief + no retaliation
-  2. Partial pass-through
-  3. Eaton-Kortum specification
-  4. Optimal tariff without retaliation
-  5. Liberation tariffs with optimal retaliation
-  6. Liberation tariffs with reciprocal retaliation
-  7. Optimal tariff with optimal retaliation
-  8. Lump-sum rebate
-  9. Higher trade elasticity
+- 9 tariff scenarios (USTR, optimal, retaliation variants)
+- Produces Tables 1, 2, 3, 9
 
-### Multi-Sector Model (`sub_multisector_baseline.py`)
+### Multi-Sector (`sub_multisector_baseline.py`)
+- K = 4 sectors (Agriculture, Manufacturing, Mining, Services)
+- Sectoral labor reallocation
+- Produces Tables 4, 11
 
-Extension with:
-- K = 4 sectors
-- Sectoral reallocation of labor
-- Sector-specific trade elasticities
+### Input-Output (`main_io.py`, `sub_multisector_io.py`)
+- Roundabout production structure
+- Intermediate input linkages
 
-## Validation
+## Key MATLAB-to-Python Notes
 
-To validate Python outputs against MATLAB:
+| MATLAB | Python | Notes |
+|--------|--------|-------|
+| 1-indexed | 0-indexed | `id_US = 185` → `id_US = 184` |
+| `repmat()` | `np.tile()` | Array replication |
+| `reshape(X,N,N,K)` | `X.reshape((N,N,K), order='F')` | Column-major order |
+| `.` operator | `*` | Element-wise multiplication |
+| `fsolve()` | `scipy.optimize.root()` | Nonlinear solver |
 
-1. Run MATLAB version:
-```matlab
-cd replication_package
-run run_all_matlab.m
-```
+## Requirements
 
-2. Run Python version:
-```bash
-cd replication_package/code_python/analysis
-python main_baseline.py
-```
+- Python 3.8+
+- NumPy >= 1.20
+- SciPy >= 1.7
+- Pandas >= 1.3
 
-3. Compare outputs:
-- `output/output_map.csv`
-- Console output for US welfare changes
+## Known Differences
 
-## Next Steps
-
-To complete the conversion:
-
-1. **Convert remaining analysis files**:
-   - `main_io.m` → `main_io.py` (Input-output linkages)
-   - `main_regional.m` → `main_regional.py` (Regional trade wars)
-   - `main_deficit.m` → `main_deficit.py` (Alternative deficit framework)
-
-2. **Convert table printing**:
-   - `print_tables_baseline.m` → `print_tables_baseline.py`
-   - `print_tables_io.m` → `print_tables_io.py`
-
-3. **Create master script**:
-   - `run_all_python.py` to replicate `run_all_matlab.m`
-
-4. **Validation**:
-   - Compare all output tables
-   - Verify numerical precision (should match to ~4 decimal places)
+1. **Solver algorithms**: Python uses Levenberg-Marquardt; MATLAB uses trust-region-dogleg
+2. **Multi-sector results**: Small numerical differences (~0.1-0.5%) in equilibrium solutions
+3. **Multi+IO model**: Larger discrepancy (~2%) under investigation
 
 ## Contact
 
-For questions about the Python conversion:
-- Check this README
-- Compare with MATLAB originals in `../code/analysis/`
-- Refer to original paper for model details
-
-For questions about the replication package:
-- Email: ahmadlp@gmail.com
+- Replication package questions: ahmadlp@gmail.com
+- See original paper for model documentation

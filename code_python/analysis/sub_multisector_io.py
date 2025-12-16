@@ -35,7 +35,8 @@ def balanced_trade_io_multisector(x, data, param):
     E_i_h = np.abs(x[N:2*N])
     L_i_h = np.abs(x[2*N:3*N])
     P_i_h = np.abs(x[3*N:4*N])
-    ell_ik_h = np.abs(x[4*N:]).reshape((N, 1, K))
+    # CRITICAL: Use Fortran order ('F') to match MATLAB's reshape behavior
+    ell_ik_h = np.abs(x[4*N:]).reshape((N, 1, K), order='F')
 
     # Construct 3D arrays
     w_i_3D = np.tile(w_i_h.reshape(-1, 1, 1), (1, N, K))
@@ -75,7 +76,8 @@ def balanced_trade_io_multisector(x, data, param):
     Y_ik = ell_ik * np.tile(Y_i.reshape(-1, 1, 1), (1, 1, K))
     Y_ik_cf = np.sum((1 - nu_3D) * beta * X_ji_new, axis=1, keepdims=True) + \
               np.transpose(np.sum(nu_3D * X_ji_new, axis=0, keepdims=True), (1, 0, 2))
-    ERR1 = (Y_ik_cf - Y_ik * Y_ik_h).reshape(N*K)
+    # CRITICAL: Use Fortran order ('F') to match MATLAB's reshape behavior
+    ERR1 = (Y_ik_cf - Y_ik * Y_ik_h).reshape(N*K, order='F')
     ERR1[N-1] = np.sum((E_i_h - 1) * E_i)  # Replace one redundant equation
 
     # ERR2: Income = Sales + Transfers (N equations)
@@ -142,7 +144,8 @@ def main():
     X = trade_data.iloc[:, 3].values
     N = 194
     K = 4
-    X_ji = X.reshape((N, N, K))
+    # CRITICAL: Use Fortran order ('F') to match how the CSV data is stored
+    X_ji = X.reshape((N, N, K), order='F')
 
     # Remove countries with no trade FIRST
     problematic_id = np.sum(np.all(X_ji == 0, axis=0), axis=1)
@@ -162,11 +165,14 @@ def main():
     # Filter tariffs to match filtered countries
     new_ustariff = new_ustariff_full[idx, :]
 
-    id_US = 185 - 1  # Convert to 0-indexed (before filtering)
-    id_US_new = np.where(idx == id_US + 1)[0][0]  # Find US index after filtering
+    # US is at index 184 in the original 0-indexed array
+    id_US = 184
+    # After filtering, find where US (index 184) is in the filtered idx array
+    id_US_new = np.where(idx == id_US)[0][0]
 
     t_ji = np.zeros((N, N, K))
-    t_ji[:, id_US_new, :K-1] = np.tile(new_ustariff, (1, 1, K-1))
+    # new_ustariff is (N, 1), tile to (N, K-1) for assignment
+    t_ji[:, id_US_new, :K-1] = np.tile(new_ustariff, (1, K-1))
     t_ji[:, id_US_new, :K-1] = np.maximum(0.1, t_ji[:, id_US_new, :K-1])
     t_ji[id_US_new, id_US_new, :K-1] = 0
 
