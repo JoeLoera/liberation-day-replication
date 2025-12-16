@@ -177,7 +177,9 @@ def main():
     print("Loading baseline parameters...")
     output_dir = os.path.join(base_path, 'python_output')
     phi_data = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))
-    phi = phi_data['phi'].values[idx]
+    # MATLAB line 64: phi = Phi{1}; uses Phi{1} = 1 + phi_tilde
+    # phi_values.csv contains Phi{2} = 0.5 + phi_tilde, so add 0.5 to get Phi{1}
+    phi = phi_data['phi'].values[idx] + 0.5
     nu_data = pd.read_csv(os.path.join(output_dir, 'nu_values.csv'))
     nu = nu_data['nu'].values[idx]
 
@@ -208,10 +210,11 @@ def main():
     ell_ik = Y_ik / np.tile(Y_i_multi.reshape(-1, 1, 1), (1, 1, K))
 
     # Trade elasticities
-    # MATLAB line 65: phi_avg=sum(Phi{1}.*Y_i)./sum(Y_i) uses UNFILTERED values
+    # MATLAB line 65: phi_avg=sum(Phi{1}.*Y_i)./sum(Y_i) uses UNFILTERED values and Phi{1}
+    # phi_values.csv contains Phi{2} = 0.5 + phi_tilde, so add 0.5 to get Phi{1}
     Y_i_baseline_full = pd.read_csv(os.path.join(output_dir, 'Y_i_baseline.csv'))['Y_i'].values
     phi_baseline_full = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))['phi'].values
-    phi_avg = np.sum(phi_baseline_full * Y_i_baseline_full) / np.sum(Y_i_baseline_full)
+    phi_avg = np.sum((phi_baseline_full + 0.5) * Y_i_baseline_full) / np.sum(Y_i_baseline_full)
     eps = np.array([3.3, 3.8, 4.1]) / phi_avg
     eps = np.append(eps, 3.0)  # Services sector
     eps_3D = np.tile(eps.reshape(1, 1, -1), (N, N, 1))

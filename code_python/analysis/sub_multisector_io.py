@@ -204,9 +204,12 @@ def main():
     ell_ik = Y_ik / np.tile(Y_i_multi.reshape(-1, 1, 1), (1, 1, K))
 
     # Trade elasticities
-    Y_i_baseline = pd.read_csv(os.path.join(output_dir, 'Y_i_baseline.csv'))['Y_i'].values[idx]
-    phi_baseline = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))['phi'].values[idx]
-    phi_avg = np.sum(phi_baseline * Y_i_baseline) / np.sum(Y_i_baseline)
+    # MATLAB line 69: phi_avg=sum(Phi{1}.*Y_i)./sum(Y_i) uses UNFILTERED values and Phi{1}
+    # phi_values.csv contains Phi{2} = 0.5 + phi_tilde, but we need Phi{1} = 1 + phi_tilde
+    # So we add 0.5 to convert from Phi{2} to Phi{1}
+    Y_i_baseline_full = pd.read_csv(os.path.join(output_dir, 'Y_i_baseline.csv'))['Y_i'].values
+    phi_baseline_full = pd.read_csv(os.path.join(output_dir, 'phi_values.csv'))['phi'].values
+    phi_avg = np.sum((phi_baseline_full + 0.5) * Y_i_baseline_full) / np.sum(Y_i_baseline_full)
     eps = np.array([3.3, 3.8, 4.1]) / phi_avg
     eps = np.append(eps, 3.0)  # Services sector
     eps_3D = np.tile(eps.reshape(1, 1, -1), (N, N, 1))

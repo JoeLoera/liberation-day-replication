@@ -27,9 +27,9 @@ def generate_table_4():
     # Load country names
     country_names = pd.read_csv(os.path.join(base_path, 'data', 'base_data', 'country_labels.csv'))['iso3'].values
 
-    # Load multi-sector results
-    print("Loading multi-sector baseline results...")
-    multi_data = np.load(os.path.join(output_dir, 'multisector_baseline_results.npz'))
+    # Load multi-sector IO results (MATLAB's print_tables_io.m uses sub_multisector_io results for Table 4)
+    print("Loading multi-sector IO results...")
+    multi_data = np.load(os.path.join(output_dir, 'multisector_io_results.npz'))
     results_multi = multi_data['results_multi']  # Shape: (N_filtered, 7, 2) for filtered countries
     id_US_multi = multi_data['id_US']
 
