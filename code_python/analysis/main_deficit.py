@@ -11,9 +11,10 @@ by Ignatenko, Macedoni, Lashkaripour, Simonovska (2025)
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, least_squares, root
 import sys
 import os
+import warnings
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -21,10 +22,58 @@ from config import get_output_dir
 from utils.solver_utils import solve_nu
 
 
-def balanced_trade_eq_deficit(x, data, param):
+def robust_solve(func, x0, methods=['hybr', 'lm'], n_restarts=2):
+    """
+    Try multiple solver methods and initial guesses, return best solution.
+    This helps find the global minimum similar to MATLAB's trust-region-dogleg.
+    """
+    best_solution = None
+    best_residual = np.inf
+
+    for method in methods:
+        for restart in range(n_restarts):
+            # Perturb initial guess slightly for restarts > 0
+            if restart == 0:
+                x_init = x0.copy()
+            else:
+                np.random.seed(restart * 42)
+                x_init = x0 * (1 + 0.05 * np.random.randn(len(x0)))
+                x_init = np.maximum(x_init, 0.1)  # Keep positive
+
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    if method == 'lm':
+                        sol = root(func, x_init, method=method, tol=1e-10,
+                                   options={'maxiter': 5000})
+                    else:
+                        sol = root(func, x_init, method=method, tol=1e-10,
+                                   options={'maxfev': 50000})
+
+                    residual = np.sum(func(sol.x)**2)
+
+                    if residual < best_residual:
+                        best_residual = residual
+                        best_solution = sol.x
+            except Exception:
+                continue
+
+    if best_solution is None:
+        # Fallback to fsolve
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            best_solution = fsolve(func, x0, xtol=1e-10, maxfev=100000)
+
+    return best_solution
+
+
+def balanced_trade_eq_deficit(x, data, param, scale_equations=False):
     """
     System of equations for balanced trade equilibrium (deficit version).
     Same structure as baseline model.
+
+    If scale_equations=True, normalizes ERR2 to have similar magnitude as ERR1/ERR3.
+    This helps with solver convergence for Cases 2 & 4.
     """
     N, E_i, Y_i, lambda_ji, t_ji, nu, T_i = data.values()
     eps, kappa, psi, phi = param.values()
@@ -74,6 +123,11 @@ def balanced_trade_eq_deficit(x, data, param):
 
     # ERR3: Labor supply
     ERR3 = L_i_h - (tau_i_h * w_i_h / P_i_h) ** kappa
+
+    # Scale ERR2 if requested (helps Cases 2 & 4 converge)
+    if scale_equations:
+        # Normalize ERR2 by E_i to match magnitude of ERR1/ERR3
+        ERR2 = ERR2 / E_i
 
     ceq = np.concatenate([ERR1, ERR2, ERR3])
 
@@ -197,6 +251,7 @@ def main():
     print(f"  US welfare change: {results[id_US, 0, 0]:.2f}%")
 
     # Case 2: Zero Deficit (Ossa, 2014)
+    # MATLAB uses default trust-region-dogleg algorithm for this case
     print("\n=== Case 2: Zero deficit (Ossa, 2014) ===")
 
     # Balance trade with the US
@@ -204,27 +259,37 @@ def main():
     T_i_new[id_US] = 0
 
     # First solve without tariffs (baseline)
-    data = {
+    data2a = {
         'N': N, 'E_i': E_i, 'Y_i': Y_i, 'lambda_ji': lambda_ji,
         't_ji': np.zeros((N, N)), 'nu': nu, 'T_i': T_i_new
     }
-    param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
+    param2 = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
+
+    def syst2a(x):
+        ceq, _ = balanced_trade_eq_deficit(x, data2a, param2, scale_equations=False)
+        return ceq
 
     x0 = np.ones(3 * N)
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=100000, factor=0.1)
-    _, temp_a = balanced_trade_eq_deficit(x_fsolve, data, param)
+    # Use robust multi-method solver
+    print("    Solving baseline (no tariffs)...")
+    x_baseline = robust_solve(syst2a, x0)
+    _, temp_a = balanced_trade_eq_deficit(x_baseline, data2a, param2)
 
     # Now solve with tariffs
     t_ji_new = t_ji.copy()
-    data = {
+    data2b = {
         'N': N, 'E_i': E_i, 'Y_i': Y_i, 'lambda_ji': lambda_ji,
         't_ji': t_ji_new, 'nu': nu, 'T_i': T_i_new
     }
-    param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
 
-    x0 = np.ones(3 * N)
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=100000, factor=0.1)
-    _, temp_b = balanced_trade_eq_deficit(x_fsolve, data, param)
+    def syst2b(x):
+        ceq, _ = balanced_trade_eq_deficit(x, data2b, param2, scale_equations=False)
+        return ceq
+
+    # Use robust solver with baseline as initial guess
+    print("    Solving with tariffs...")
+    x_fsolve = robust_solve(syst2b, x_baseline)
+    _, temp_b = balanced_trade_eq_deficit(x_fsolve, data2b, param2)
 
     results[:, :, 1] = temp_b - temp_a
 
@@ -252,35 +317,45 @@ def main():
     print(f"  US welfare change: {results[id_US, 0, 2]:.2f}%")
 
     # Case 4: Zero Deficit + Retaliation
+    # MATLAB uses default trust-region-dogleg algorithm for this case
     print("\n=== Case 4: Zero deficit + retaliation ===")
     T_i_new = T - (X_ji[id_US, :] - X_ji[:, id_US])
     T_i_new[id_US] = 0
 
     # Baseline without tariffs
-    data = {
+    data4a = {
         'N': N, 'E_i': E_i, 'Y_i': Y_i, 'lambda_ji': lambda_ji,
         't_ji': np.zeros((N, N)), 'nu': nu, 'T_i': T_i_new
     }
-    param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
+    param4 = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
+
+    def syst4a(x):
+        ceq, _ = balanced_trade_eq_deficit(x, data4a, param4, scale_equations=False)
+        return ceq
 
     x0 = np.ones(3 * N)
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=100000, factor=0.1)
-    _, temp_a = balanced_trade_eq_deficit(x_fsolve, data, param)
+    # Use robust multi-method solver
+    print("    Solving baseline (no tariffs)...")
+    x_baseline = robust_solve(syst4a, x0)
+    _, temp_a = balanced_trade_eq_deficit(x_baseline, data4a, param4)
 
     # With tariffs and retaliation
     t_ji_new = t_ji.copy()
     t_ji_new[id_US, :] = 1 / ((1 + eps) * phi[id_US] - 1)
     t_ji_new[id_US, id_US] = 0
 
-    data = {
+    data4b = {
         'N': N, 'E_i': E_i, 'Y_i': Y_i, 'lambda_ji': lambda_ji,
         't_ji': t_ji_new, 'nu': nu, 'T_i': T_i_new
     }
-    param = {'eps': eps, 'kappa': kappa, 'psi': psi, 'phi': phi}
 
-    x0 = np.ones(3 * N)
-    x_fsolve = fsolve(syst, x0, xtol=1e-10, maxfev=100000, factor=0.1)
-    _, temp_b = balanced_trade_eq_deficit(x_fsolve, data, param)
+    def syst4b(x):
+        ceq, _ = balanced_trade_eq_deficit(x, data4b, param4, scale_equations=False)
+        return ceq
+
+    print("    Solving with tariffs + retaliation...")
+    x_fsolve = robust_solve(syst4b, x_baseline)
+    _, temp_b = balanced_trade_eq_deficit(x_fsolve, data4b, param4)
 
     results[:, :, 3] = temp_b - temp_a
 

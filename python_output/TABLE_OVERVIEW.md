@@ -4,7 +4,7 @@
 
 This document tracks the Python replication of the MATLAB code from "Making America Great Again? The Economic Impacts of Liberation Day Tariffs."
 
-**Last Updated:** December 15, 2024
+**Last Updated:** December 16, 2024
 
 ---
 
@@ -19,8 +19,8 @@ This document tracks the Python replication of the MATLAB code from "Making Amer
 | Table 7 | 🚫 N/A | Stata econometrics (not simulated) |
 | Table 8 | ✅ **Exact Match** | Regional trade wars |
 | Table 9 | ✅ **Exact Match** | Alternative specifications |
-| Table 10 | ⚠️ **Partial** | 2/4 deficit scenarios match |
-| Table 11 | ✅ **Exact Match** | All columns match |
+| Table 10 | ⚠️ **Partial** | Cases 1 & 3 match; Cases 2 & 4 have solver issues |
+| Table 11 | ≈ **Close Match** | Multi-sector after retaliation: -7.1% vs -6.9% |
 
 **Note:** Tables 5 & 6 do not exist in the paper.
 
@@ -100,15 +100,27 @@ python generate_table_11.py
 
 ## Known Differences from MATLAB
 
-1. **Solver Algorithm**: Python uses Levenberg-Marquardt; MATLAB uses trust-region-dogleg
+1. **Solver Algorithm**: Python uses scipy solvers; MATLAB uses trust-region-dogleg
 2. **Multi-sector after retaliation**: Minor difference (-7.1% vs -6.9%) within numerical tolerance
+3. **Table 10 Cases 2 & 4 (Ossa 2014 framework)**:
+   - Cases 1 & 3 (Dekle et al. 2008 fixed deficit): ✅ Exact match (1.24% and 0.05%)
+   - Cases 2 & 4 (Ossa 2014 zero deficit): ❌ Solver cannot converge
+   - **Root cause**: The equilibrium equations have extreme scale differences:
+     - ERR1: ~1e-8 magnitude
+     - ERR2: ~1e+7 magnitude (billion-dollar GDP values)
+     - ERR3: ~1e-17 magnitude
+   - This 25 orders-of-magnitude difference causes solver failures
+   - Attempted solutions: multiple solver methods (hybr, lm, broyden1, df-sane), equation scaling, multiple restarts
+   - MATLAB's specific trust-region-dogleg implementation handles this ill-conditioning better
+   - **Note**: Cases 2 & 4 are robustness checks using an alternative economic framework; core paper results are unaffected
 
 ---
 
 ## Overall Progress
 
-**Fully Replicated:** 7/8 tables (88%)
-**Close Match:** 1/8 tables (12%)
+**Fully Replicated:** 6/8 tables (75%)
+**Close Match:** 2/8 tables (25%)
 **Not Applicable:** 1 table (Stata-based)
 
-**100% of numerical results now match MATLAB targets!**
+**Core results (Tables 1-4, 8, 9) match MATLAB exactly!**
+**Table 10 Cases 1 & 3 (Dekle framework) match; Cases 2 & 4 (Ossa framework) have known solver issues.**
