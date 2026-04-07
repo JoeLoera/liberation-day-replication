@@ -487,7 +487,7 @@ def generate_all_tables(results_dict, base_path='.'):
     print_table_3(revenue, output_dir)
     print_table_9(results, E_i, country_names, id_US, output_dir)
 
-    print("\n✓ All baseline LaTeX tables generated successfully!")
+    print("\n[OK] All baseline LaTeX tables generated successfully!")
 
 
 if __name__ == '__main__':
