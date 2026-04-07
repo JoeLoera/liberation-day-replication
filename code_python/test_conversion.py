@@ -26,7 +26,7 @@ def test_baseline():
         results_dict = main()
 
         print("\n" + "="*60)
-        print("✓ Baseline analysis completed successfully!")
+        print("[OK] Baseline analysis completed successfully!")
         print("="*60)
 
         # Print key results
@@ -70,18 +70,18 @@ def test_baseline():
         for file in output_files:
             file_path = os.path.join(base_path, file)
             if os.path.exists(file_path):
-                print(f"✓ Created: {file}")
+                print(f"[OK] Created: {file}")
                 # Show first few rows
                 df = pd.read_csv(file_path)
                 print(f"  Shape: {df.shape}")
             else:
-                print(f"✗ Missing: {file}")
+                print(f"[!!] Missing: {file}")
 
         return True
 
     except Exception as e:
         print("\n" + "="*60)
-        print("✗ Error in baseline analysis:")
+        print("[!!] Error in baseline analysis:")
         print("="*60)
         print(f"\n{type(e).__name__}: {e}")
         import traceback
@@ -106,7 +106,7 @@ def compare_with_matlab():
     matlab_exists = all(os.path.exists(os.path.join(base_path, f)) for f in matlab_files)
 
     if not matlab_exists:
-        print("\n⚠ MATLAB output files not found.")
+        print("\n[--] MATLAB output files not found.")
         print("Run MATLAB version first to enable comparison:")
         print("  >> cd replication_package")
         print("  >> run run_all_matlab.m")
@@ -115,16 +115,16 @@ def compare_with_matlab():
     # Compare CSV outputs
     try:
         matlab_csv = pd.read_csv(os.path.join(base_path, 'output/output_map.csv'))
-        print(f"\n✓ Found MATLAB output_map.csv")
+        print(f"\n[OK] Found MATLAB output_map.csv")
         print(f"  Shape: {matlab_csv.shape}")
         print(f"  Columns: {list(matlab_csv.columns)}")
 
         # Could add more detailed comparisons here
-        print("\n⚠ Detailed numerical comparison not implemented yet.")
+        print("\n[--] Detailed numerical comparison not implemented yet.")
         print("  Manually compare output files for now.")
 
     except Exception as e:
-        print(f"\n✗ Error comparing files: {e}")
+        print(f"\n[!!] Error comparing files: {e}")
 
 
 def main_test():
@@ -143,7 +143,7 @@ def main_test():
         print("\n" + "="*70)
         print(" Test Suite Completed")
         print("="*70)
-        print("\n✓ All tests passed!")
+        print("\n[OK] All tests passed!")
         print("\nNext steps:")
         print("  1. Compare output files with MATLAB versions")
         print("  2. Run multi-sector extension")
@@ -153,7 +153,7 @@ def main_test():
         print("\n" + "="*70)
         print(" Test Suite Failed")
         print("="*70)
-        print("\n✗ Please fix errors before proceeding.")
+        print("\n[!!] Please fix errors before proceeding.")
 
     return baseline_ok
 

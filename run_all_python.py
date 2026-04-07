@@ -38,10 +38,10 @@ def run_analysis(module_name, description):
         # Import and run the module
         module = __import__(f'analysis.{module_name}', fromlist=['main'])
         results = module.main()
-        print(f"\n✓ {description} completed successfully!")
+        print(f"\n[OK] {description} completed successfully!")
         return results
     except Exception as e:
-        print(f"\n✗ Error in {description}:")
+        print(f"\n[!!] Error in {description}:")
         print(f"  {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
@@ -71,14 +71,14 @@ def main():
     if results:
         all_results['baseline'] = results
     else:
-        print("\n⚠ Baseline analysis failed. Stopping execution.")
+        print("\n[!!] Baseline analysis failed. Stopping execution.")
         return
 
     # 2. Baseline + IO (TEMPORARILY DISABLED - convergence issues)
     print("\n" + "="*70)
     print(" Input-Output Model Analysis")
     print("="*70)
-    print("⚠ SKIPPED: IO model has convergence issues - will be fixed separately")
+    print("[--] SKIPPED: IO model has convergence issues - will be fixed separately")
     # results = run_analysis('main_io', 'Input-Output Model Analysis')
     # if results:
     #     all_results['io'] = results
@@ -96,14 +96,14 @@ def main():
             result = subprocess.run([python_cmd, fig_script],
                                    capture_output=True, text=True)
             if result.returncode == 0:
-                print("✓ Figure 1 created successfully!")
+                print("[OK] Figure 1 created successfully!")
             else:
-                print(f"⚠ Figure 1 creation failed:")
+                print(f"[!!] Figure 1 creation failed:")
                 print(result.stderr)
         else:
-            print(f"⚠ Figure script not found: {fig_script}")
+            print(f"[--] Figure script not found: {fig_script}")
     except Exception as e:
-        print(f"⚠ Error creating figure: {e}")
+        print(f"[!!] Error creating figure: {e}")
 
     # 4. Regional trade war
     results = run_analysis('main_regional', 'Regional Trade War Analysis')
@@ -115,6 +115,30 @@ def main():
     if results:
         all_results['deficit'] = results
 
+    # 6. Phase 2: Sector-specific analyses
+    print("\n" + "="*70)
+    print(" Phase 2: Sector-Specific Analyses")
+    print("="*70)
+    print("Running Manufacturing, Pharmaceuticals, and Retail analyses...")
+    try:
+        import importlib
+        sector_runner = importlib.import_module('analysis.run_sector_analyses')
+        # Run each sector module directly (skip the prerequisites re-check)
+        for mod_name, func_name, label in [
+            ('analysis.sector_manufacturing', 'analyze_manufacturing', 'Manufacturing'),
+            ('analysis.sector_pharma',        'analyze_pharma',        'Pharmaceuticals'),
+            ('analysis.sector_retail',        'analyze_retail',        'Retail / Consumer'),
+        ]:
+            try:
+                mod = importlib.import_module(mod_name)
+                getattr(mod, func_name)()
+                print(f"[OK] {label} sector analysis complete.")
+                all_results[label.lower()] = True
+            except Exception as sec_err:
+                print(f"[!!] {label} sector analysis failed: {sec_err}")
+    except Exception as e:
+        print(f"[!!] Phase 2 sector analyses failed: {e}")
+
     # Summary
     print("\n" + "="*70)
     print(" EXECUTION SUMMARY")
@@ -122,7 +146,7 @@ def main():
 
     print("\nCompleted analyses:")
     for key in all_results.keys():
-        print(f"  ✓ {key}")
+        print(f"  [OK] {key}")
 
     print("\nGenerated outputs:")
     output_dir_name = get_output_dir()
@@ -164,10 +188,10 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠ Execution interrupted by user.")
+        print("\n\n[!!] Execution interrupted by user.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n✗ Fatal error: {e}")
+        print(f"\n\n[!!] Fatal error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

@@ -1,51 +1,50 @@
-# Liberation Day Tariffs: Python Replication Package
+# Liberation Day Tariffs: Python Replication & Sector Analysis
 
-**Python replication of "Making America Great Again? The Economic Impacts of Liberation Day Tariffs"**
+**Python replication and extension of "Making America Great Again? The Economic Impacts of Liberation Day Tariffs"**
 
 By Ignatenko, Macedoni, Lashkaripour, and Simonovska (2025)
-
-[![Replication Status](https://img.shields.io/badge/replication-95%25%20complete-brightgreen)](https://github.com/JoeLoera/liberation-day-replication)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
 
 ## Overview
 
-This repository provides a complete Python replication of the MATLAB code from the economic analysis of proposed "Liberation Day" tariffs. The replication achieves **95% accuracy** with 6 of 8 applicable tables matching MATLAB outputs exactly and 2 tables with minor documented differences.
+This repository provides:
 
-### Paper Citation
+1. **Phase 1 -- GE Model Replication**: A complete Python translation of the MATLAB general equilibrium trade model from Ignatenko et al. (2025). 194 countries, K=4 sectors, solved via Levenberg-Marquardt. 6 of 8 applicable tables match MATLAB exactly; 2 have documented minor differences.
 
-> Ignatenko, A., Macedoni, L., Lashkaripour, A., & Simonovska, I. (2025).
-> *Making America Great Again? The Economic Impacts of Liberation Day Tariffs.*
+2. **Phase 2 -- Sector-Specific Extension**: Three original analysis modules that decompose aggregate GE results into sector-level impacts using 6 additional datasets (OECD ICIO, HTS8 tariffs, pharma bilateral trade, Cavallo price indices, retail product prices, BEA NAICS gross output) not used in the original paper.
 
 ---
 
-## Replication Status
+## Key Results
 
-### Summary
+### GE Model (Phase 1) -- matches Ignatenko et al. Table 4
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| **Exact Match** | 6 tables | Tables 1, 2, 3, 4, 8, 9 |
-| **Close Match** | 2 tables | Tables 10, 11 (documented differences) |
-| **Not Applicable** | 1 table | Table 7 (Stata econometrics) |
+| Scenario | US Welfare | US CPI | Imports/GDP |
+|---|---|---|---|
+| USTR Liberation Day, no retaliation | +0.60% | +7.09% | -22.6% |
+| Full reciprocal retaliation | -1.02% | +4.38% | -30.1% |
 
-**Note:** Tables 5 & 6 do not exist in the paper.
+### Sector Decomposition (Phase 2) -- original contribution
 
-### Detailed Results
+**Manufacturing (96% of CPI impact)**
+- Trade-weighted avg tariff: 27.0% | Import penetration: 32.3%
+- Manufacturing CPI contribution: +6.79pp of the +7.09% total
+- OECD ICIO IO multiplier: 1.094x (intermediate import share: 16.8%)
+- NAICS breakdown: 235 sub-sectors; top 5 account for 70% of $6.32T manufacturing GO
 
-| Table | Description | Python vs MATLAB | Status |
-|-------|-------------|------------------|--------|
-| **Table 1** | Baseline policy scenarios | Exact match | ✅ |
-| **Table 2** | Retaliation scenarios | Exact match | ✅ |
-| **Table 3** | Tariff revenue analysis | Exact match | ✅ |
-| **Table 4** | Multi-sector welfare (USA: 0.60%) | Exact match | ✅ |
-| **Table 7** | Trade elasticity estimation | Stata-based (not simulated) | N/A |
-| **Table 8** | Regional trade war scenarios | Exact match | ✅ |
-| **Table 9** | Alternative specifications (Eaton-Kortum) | Exact match | ✅ |
-| **Table 10** | Deficit framework comparison | Cases 1 & 3: ✅, Cases 2 & 4: ⚠️ | Partial |
-| **Table 11** | Global trade-to-GDP changes | -7.1% vs -6.9% (multi-sector) | ≈ Close |
+**Pharmaceuticals (supply chain analysis)**
+- 132-country actual bilateral trade weights (not hardcoded estimates)
+- Trade-weighted effective tariff: 19.90%
+- Top suppliers: Spain 10.9%, Germany 9.1%, Canada 8.8%, Japan 8.5%
+- HHI: 580 pre-tariff -> 591 post-tariff (+11) -- competitive supply base
+- Pharma CPI contribution: +0.50pp
+
+**Retail / Consumer Goods (distributional incidence)**
+- Tariff burden is regressive: Q1 (poorest) = 8.40%, Q5 (richest) = 5.94%
+- Regressivity ratio: 1.41x (poorest pay 41% more as share of budget)
+- GE adjustment factor: 0.52x (GE dampening vs naive first-order estimate)
+- Cavallo daily price data: +0.10% US price change at 90 days post-Liberation Day
 
 ---
 
@@ -53,56 +52,132 @@ This repository provides a complete Python replication of the MATLAB code from t
 
 ### Prerequisites
 
-- Python 3.10+
-- NumPy, SciPy, Pandas, Matplotlib, GeoPandas
+```
+Python 3.10+
+numpy, scipy, pandas, matplotlib, openpyxl
+```
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/JoeLoera/liberation-day-replication.git
 cd liberation-day-replication
-
-# Create virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
 pip install -r code_python/requirements.txt
 ```
 
-### Data Files
-
-Due to GitHub file size limits, large data files (>50MB) are excluded. See [DATA_README.md](DATA_README.md) for download instructions for:
-
-- Sectoral tariffs data (5.2 GB)
-- BACI trade data (348 MB)
-- ITPD database (966 MB)
-- Dynamic Gravity data (125 MB)
-
-### Running the Analysis
+### Running
 
 ```bash
-# Run all analyses
-python3 run_all_python.py
+# Run everything (Phase 1 GE model + Phase 2 sector analyses)
+python run_all_python.py
 
-# Or run individual components:
-python3 code_python/analysis/main_baseline.py       # Tables 1-3, 9
-python3 code_python/analysis/main_regional.py       # Table 8
-python3 code_python/analysis/main_deficit.py        # Table 10
-python3 code_python/analysis/sub_multisector_baseline.py  # Table 4
-python3 code_python/analysis/sub_multisector_io.py        # Table 4 (IO)
-python3 code_python/analysis/generate_table_11.py   # Table 11
+# Or run Phase 2 sector analyses only (requires Phase 1 .npz files)
+cd code_python/analysis
+python run_sector_analyses.py
 ```
 
-### Output
+Phase 2 requires these prerequisite files in `python_output/` (generated by Phase 1):
+- `baseline_results.npz` -- single-sector GE (194 countries, 9 scenarios)
+- `multisector_io_results.npz` -- multi-sector IO-adjusted GE (181 countries, 2 scenarios)
 
-Results are generated in `python_output/`:
+### Running Individual Components
 
-- **LaTeX tables**: `Table_1.tex`, `Table_2.tex`, etc.
-- **CSV exports**: `output_map.csv`, `output_map_retal.csv`
-- **Figures**: `figure_1.png`
-- **NPZ files**: Compressed NumPy result arrays
+```bash
+# Phase 1 -- GE model
+python code_python/analysis/main_baseline.py             # Tables 1-3, 9
+python code_python/analysis/sub_multisector_baseline.py   # Multi-sector baseline
+python code_python/analysis/sub_multisector_io.py         # Multi-sector IO (Table 4)
+python code_python/analysis/main_regional.py              # Table 8
+python code_python/analysis/main_deficit.py               # Table 10
+python code_python/analysis/generate_table_4.py           # Table 4 comparison
+python code_python/analysis/generate_table_11.py          # Table 11
+
+# Phase 2 -- sector analyses
+python code_python/analysis/sector_manufacturing.py
+python code_python/analysis/sector_pharma.py
+python code_python/analysis/sector_retail.py
+```
+
+---
+
+## Output Files
+
+All results are generated in `python_output/`:
+
+### Phase 1: GE Model Tables
+| File | Description |
+|---|---|
+| `Table_1.tex` | Baseline scenarios (USTR, lump-sum, optimal) |
+| `Table_2.tex` | Retaliation scenarios |
+| `Table_3.tex` | Tariff revenue analysis |
+| `Table_4.tex` | Single-sector vs multi-sector comparison |
+| `Table_8.tex` | Regional trade war scenarios |
+| `Table_9.tex` | Alternative specifications (Eaton-Kortum, elasticity) |
+| `Table_10.tex` | Deficit framework (Dekle vs Ossa) |
+| `Table_11.tex` | Global trade-to-GDP and employment changes |
+
+### Phase 2: Sector Analysis Tables and Figures
+| File | Description |
+|---|---|
+| `Table_S1_manufacturing.tex` | Top manufacturing partners by tariff exposure |
+| `Table_S1b_manufacturing_naics.tex` | Top 12 NAICS sub-sectors by gross output |
+| `Table_S2_manufacturing_optimal.tex` | Alternative tariff scenario comparison |
+| `Table_S3_pharma_price.tex` | Pharma price and import volume impacts |
+| `Table_S4_pharma_suppliers.tex` | 132-country supplier shares and HHI |
+| `Table_S5_retail_passthrough.tex` | Sector CPI pass-through decomposition |
+| `Table_S6_retail_incidence.tex` | Income quintile distributional incidence |
+| `fig_manufacturing_*.png` | Tariff exposure, scenarios, HTS8 comparison, NAICS breakdown |
+| `fig_pharma_*.png` | Supplier shift, price comparison |
+| `fig_retail_*.png` | CPI decomposition, welfare gap, quintile incidence, Cavallo prices |
+
+### Data Files
+| File | Description |
+|---|---|
+| `baseline_results.npz` | Single-sector GE results (194 countries, 7 metrics, 9 scenarios) |
+| `multisector_baseline_results.npz` | Multi-sector GE without IO linkages |
+| `multisector_io_results.npz` | Multi-sector GE with IO linkages (paper's primary result) |
+| `sector_manufacturing_results.npz` | Manufacturing sector computed values |
+| `sector_pharma_results.npz` | Pharma sector computed values |
+| `sector_retail_results.npz` | Retail sector computed values |
+
+---
+
+## Replication Accuracy (Phase 1)
+
+| Table | Description | Status |
+|-------|-------------|--------|
+| Table 1 | Baseline policy scenarios | Exact match |
+| Table 2 | Retaliation scenarios | Exact match |
+| Table 3 | Tariff revenue analysis | Exact match |
+| Table 4 | Multi-sector comparison (US welfare: 0.60%) | Exact match |
+| Table 7 | Trade elasticity estimation | N/A (Stata-based) |
+| Table 8 | Regional trade war scenarios | Exact match |
+| Table 9 | Alternative specifications (Eaton-Kortum) | Exact match |
+| Table 10 | Deficit framework | Cases 1 & 3 exact; Cases 2 & 4 documented limitation |
+| Table 11 | Global trade-to-GDP changes | Close match (0.2pp tolerance) |
+
+**Table 10 limitation**: The Ossa (2014) zero-deficit framework has equilibrium equations spanning 25 orders of magnitude. MATLAB's trust-region-dogleg solver handles this internally; SciPy's solvers cannot converge. Cases 1 and 3 (Dekle et al. fixed-deficit, the paper's baseline framework) match exactly.
+
+---
+
+## Data Sources
+
+### Included in repository (`data/`)
+- **ITPD-E**: International Trade and Production Database (194 countries x 4 sectors)
+- **Base data**: Country labels, tariff rates, trade flows
+
+### Team-sourced data (`data/`)
+- **OECD ICIO 2022**: Inter-country IO tables (81 countries x 50 sectors, pre-processed to `io_coeff_matrix.npy`)
+- **US HTS8 Tariff Schedule 2025**: 13,100 product lines (`us_tariff_schedule_2025_hts8.csv`)
+- **Pharma bilateral trade**: 132 countries, 2024 flows (`pharma_bilateral_trade.xlsx`)
+- **Cavallo daily price indices**: Oct 2024-Feb 2026, 498 observations (`daily_price_indices_cavallo_etal.csv`)
+- **Retail product prices**: 999 products, 5 categories (`retail_prices_illustrative.csv`)
+- **BEA Gross Output by NAICS**: 417 NAICS4 sectors, 2016-2021 (`D_GO_by_NAICS.xlsx`)
+- **BLS PPI/MPI**: 10 NAICS4 sectors, 2012-2018 (`D_price_indices.xlsx`)
+
+### Large files (not in repo -- see `DATA_README.md`)
+- Sectoral tariffs data (5.2 GB)
+- BACI trade data (348 MB)
 
 ---
 
@@ -110,150 +185,76 @@ Results are generated in `python_output/`:
 
 ```
 liberation-day-replication/
-├── README.md                    # This file
-├── DATA_README.md               # Large data file instructions
-├── run_all_python.py            # Main execution script
-│
-├── code/                        # Original MATLAB code
-│   ├── analysis/                # MATLAB analysis scripts
-│   └── utils/                   # MATLAB utilities
-│
-├── code_python/                 # Python replication
-│   ├── analysis/                # Main analysis scripts
-│   │   ├── main_baseline.py     # Single-sector baseline
-│   │   ├── main_io.py           # Input-output model
-│   │   ├── main_regional.py     # Regional trade wars
-│   │   ├── main_deficit.py      # Deficit framework
-│   │   ├── sub_multisector_baseline.py  # Multi-sector K=4
-│   │   ├── sub_multisector_io.py        # Multi-sector IO
-│   │   ├── generate_table_4.py  # Table 4 generator
-│   │   └── generate_table_11.py # Table 11 generator
-│   ├── utils/                   # Helper functions
-│   │   ├── data_loader.py       # Data loading utilities
-│   │   ├── solver_utils.py      # Equilibrium solvers
-│   │   └── formatting.py        # Output formatting
-│   └── requirements.txt         # Python dependencies
-│
-├── data/                        # Data files
-│   ├── base_data/               # Baseline trade data
-│   ├── sectoral_tariffs/        # Tariff schedules
-│   └── Dynamic_Gravity_Database/
-│
-├── output/                      # MATLAB reference outputs
-│   └── Table_*.tex              # MATLAB-generated tables
-│
-└── python_output/               # Python generated outputs
-    ├── Table_*.tex              # Python-generated tables
-    ├── TABLE_OVERVIEW.md        # Detailed replication notes
-    └── *_results.npz            # Compressed results
+|-- README.md
+|-- run_all_python.py                  # Single entry point: Phase 1 + Phase 2
+|
+|-- code_python/
+|   |-- analysis/
+|   |   |-- main_baseline.py           # Single-sector GE (Tables 1-3, 9)
+|   |   |-- main_regional.py           # Regional trade wars (Table 8)
+|   |   |-- main_deficit.py            # Deficit framework (Table 10)
+|   |   |-- sub_multisector_baseline.py # Multi-sector K=4
+|   |   |-- sub_multisector_io.py       # Multi-sector IO (Table 4)
+|   |   |-- generate_table_4.py        # Table 4 generator
+|   |   |-- generate_table_11.py       # Table 11 generator
+|   |   |-- run_sector_analyses.py     # Phase 2 orchestrator
+|   |   |-- sector_manufacturing.py    # Manufacturing + NAICS analysis
+|   |   |-- sector_pharma.py           # Pharmaceutical supply chain
+|   |   |-- sector_retail.py           # Retail distributional incidence
+|   |   `-- print_tables_baseline.py   # LaTeX table formatter
+|   |-- utils/
+|   |   |-- data_utils.py              # Shared data loading (ICIO, pharma, Cavallo, HTS8)
+|   |   `-- solver_utils.py            # Equilibrium solver helpers
+|   `-- requirements.txt
+|
+|-- capstone_report/
+|   `-- capstone_report.tex            # Full LaTeX capstone report
+|
+|-- data/
+|   |-- base_data/                     # Tariffs, country labels
+|   |-- ITPDS/                         # Trade and production database
+|   |-- OECD_ICIO_SML_2016_2022/       # OECD ICIO annual tables
+|   |-- processed/icio_2022/           # Pre-processed IO matrices
+|   |-- processed/shocks/              # HTS8-derived tariff shocks
+|   |-- code_and_release_data/301 model/  # BEA NAICS + BLS PPI data
+|   |-- pharma_bilateral_trade.xlsx
+|   |-- daily_price_indices_cavallo_etal.csv
+|   |-- retail_prices_illustrative.csv
+|   `-- us_tariff_schedule_2025_hts8.csv
+|
+`-- python_output/                     # All generated outputs
+    |-- Table_*.tex                    # LaTeX tables (15 total)
+    |-- fig_*.png                      # Figures (11 total)
+    `-- *_results.npz                  # Compressed results (8 total)
 ```
 
 ---
 
 ## Technical Notes
 
-### Key Conversion Fixes
+### MATLAB-to-Python Conversion
+1. **Array ordering**: All critical `reshape()` calls use `order='F'` to match MATLAB column-major layout
+2. **Index conventions**: US index is 185 in MATLAB (1-indexed), 184 in Python (0-indexed); multi-sector model filters 13 zero-trade countries, placing US at index 171
+3. **Phi values**: Baseline uses `Phi = 1 + phi_tilde`; IO model uses `Phi = 0.5 + phi_tilde`
+4. **Solver**: SciPy Levenberg-Marquardt matches MATLAB `fsolve` for all tables except Table 10 Cases 2 & 4
 
-Converting MATLAB to Python required addressing several systematic differences:
-
-1. **Array Ordering**: MATLAB uses column-major (Fortran) order; Python uses row-major (C) order
-   - Solution: Added `order='F'` to critical reshape operations
-
-2. **Index Conventions**: MATLAB is 1-indexed; Python is 0-indexed
-   - Solution: Adjusted all country index lookups (e.g., US index: 185 → 184)
-
-3. **Tariff Matrix Construction**: Fixed `np.tile()` dimensions for proper broadcasting
-
-4. **Phi Values for Multi-sector Models**:
-   - Multi-sector baseline: `Phi{1} = 1 + phi_tilde`
-   - Multi-sector IO: `Phi{2} = 0.5 + phi_tilde` for phi, `Phi{1}` for phi_avg
-
-### Known Differences from MATLAB
-
-1. **Solver Algorithm**: Python uses SciPy solvers; MATLAB uses trust-region-dogleg
-
-2. **Table 10 Cases 2 & 4** (Ossa 2014 framework):
-   - Cases 1 & 3 (Dekle et al. 2008): ✅ Exact match
-   - Cases 2 & 4 (Ossa 2014): ⚠️ Solver convergence issues
-   - **Root cause**: Equilibrium equations span 25 orders of magnitude (ERR1: ~1e-8, ERR2: ~1e+7, ERR3: ~1e-17)
-   - MATLAB's trust-region-dogleg handles this ill-conditioning better than SciPy alternatives
-   - **Note**: Cases 2 & 4 are robustness checks; core paper results are unaffected
-
-3. **Table 11 Multi-sector after retaliation**: -7.1% (Python) vs -6.9% (MATLAB)
-   - Difference is within numerical tolerance (0.2 percentage points)
-
----
-
-## Model Overview
-
-The replication implements quantitative trade models to analyze tariff impacts:
-
-### Single-Sector Model (Baseline)
-- Armington framework with CES preferences
-- Equilibrium wages and trade flows
-- Welfare measured as real wage changes
-
-### Multi-Sector Model (K=4 sectors)
-- Agriculture, Manufacturing, Services, Other
-- Sector-specific trade elasticities
-- Input-output linkages (optional)
-
-### Scenarios Analyzed
-- Unilateral US tariffs ("Liberation Day")
-- Full retaliation by trading partners
-- Regional trade wars (US-China, EU, NAFTA)
-- Alternative trade elasticity specifications
-
----
-
-## Validation
-
-All results have been validated against the original MATLAB outputs:
-
-```
-Tables 1-4, 8, 9:  ✅ Exact numerical match
-Table 10:          ✅ Cases 1 & 3 match; Cases 2 & 4 documented limitation
-Table 11:          ≈ Close match (within 0.2pp tolerance)
-```
-
-See [python_output/TABLE_OVERVIEW.md](python_output/TABLE_OVERVIEW.md) for detailed validation results.
-
----
-
-## Contributing
-
-Contributions are welcome. Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -am 'Add improvement'`)
-4. Push to branch (`git push origin feature/improvement`)
-5. Open a Pull Request
-
----
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- **Original MATLAB Code**: Ignatenko, Macedoni, Lashkaripour, Simonovska
-- **Python Conversion**: Joel Loera
-- **Methodology**: Based on Dekle, Eaton, and Kortum (2008) and Ossa (2014)
+### Phase 2 Methodology
+- **IO multipliers**: `M_k = 1 / (1 - (1 - 0.49) * import_share_k)` from OECD ICIO 2022 coefficient matrix
+- **Pharma gravity reallocation**: `post_share_j ~ share_j * (1 + tariff_j)^(-2.3)` (Broda & Weinstein 2006)
+- **Distributional incidence**: `burden_q = goods_share_q * GE_CPI / avg_goods_share` using BLS CEX 2023
+- **GE envelope**: Sector modules use the IO-adjusted multi-sector GE result (matching Table 4 of the paper)
 
 ---
 
 ## References
 
-1. Dekle, R., Eaton, J., & Kortum, S. (2008). Global rebalancing with gravity: Measuring the burden of adjustment. *IMF Staff Papers*, 55(3), 511-540.
-
-2. Ossa, R. (2014). Trade wars and trade talks with data. *American Economic Review*, 104(12), 4104-46.
-
-3. Eaton, J., & Kortum, S. (2002). Technology, geography, and trade. *Econometrica*, 70(5), 1741-1779.
+1. Ignatenko, A., Macedoni, L., Lashkaripour, A., & Simonovska, I. (2025). *Making America Great Again? The Economic Impacts of Liberation Day Tariffs.* Working paper.
+2. Dekle, R., Eaton, J., & Kortum, S. (2008). Global rebalancing with gravity. *IMF Staff Papers*, 55(3), 511-540.
+3. Ossa, R. (2014). Trade wars and trade talks with data. *AER*, 104(12), 4104-46.
+4. Caliendo, L., & Parro, F. (2015). Estimates of the trade and welfare effects of NAFTA. *REStud*, 82(1), 1-44.
+5. Broda, C., & Weinstein, D. (2006). Globalization and the gains from variety. *QJE*, 121(2), 541-585.
+6. Cavallo, A., et al. (2025). Tariff pass-through estimates. Working paper.
 
 ---
 
-**Last Updated:** December 2024
+**Capstone Project -- Joel Loera | April 2026**
